@@ -35,7 +35,7 @@ hb.pull <- function(tablename,column_family = character(0), columns = NULL, star
 #     data.frame(rowkey = x[[1]], colspec = unlist(x[[2]]), values = unlist(x[[3]]))
 #   })
   tmp  <- lapply(tmp, function(x){
-            data.table(rowkey = x[[1]], colspec = unlist(x[[2]]), values = unlist(x[[3]]))
+            data.table(rowkey = x[[1]], colspec = unlist(x[[2]]), values = unlist(x[[3]],recursive = FALSE))
           })
   tmp <- data.table::rbindlist(tmp)
   tidyr::separate(data = tmp,col = "colspec",into = c("column_family","column"),sep = "::")
@@ -61,30 +61,31 @@ hb.pull <- function(tablename,column_family = character(0), columns = NULL, star
 #' hb.init(serialize = "character")
 #' TABLE_NAME = "Test"
 hb.put <- function(table_name, column_family, rowkey, column, value = NULL,...){
+  #general theme, value should be a list equal in size to the number of columns
+  
   #Need to address special case. Namely, if you give a vector of columns, one for each rowkey
   #basically, if column is a vector, length should match rowkey OR there should only be 1 rowkey
-  if(is.vector(column) & !is.list(column)){
-    if(length(column) == length(rowkey)) column = as.list(column)
-    else column <- list(column)
-  }  #convert to list for easy use later
+  if(!is.null(value) && !is.list(value)) stop("value must be a list")
+  if(!is.vector(column)) stop("column must be a vector") #TODO needs to be 1 deminsional
+#   if(is.vector(column) & !is.list(column)){
+#     if(length(column) == length(rowkey)) column = as.list(column)
+#     else column <- list(column)
+#   }  #convert to list for easy use later
   if(is.null(value)){ #to be complient with hb.insert, need values (many typical big data cases have their values as the columns... errrrr)
     value <- list()
     for(i in seq_along(column)) value[[i]] <- rep(NA,length(column[[i]]))
   }
-  if(is.vector(value) & !is.list(value)) value  <- list(value)
-  stopifnot(is.list(column),
-            is.list(value),
+  stopifnot(is.list(value),
             length(table_name) == 1 & nrow(table_name) == 1, #only support for one table name and
             length(column_family) == 1 & nrow(column_family) == 1, #one column family at a time
-            class(value) == class(column),
             length(column) == length(value), 
             length(rowkey) == length(column)) #since now a list, should be equal
   
   #also need to make sure the length of each set of values for each rowkey is the same as
   #as each length of each set of columns for each rowkey  
-  if(!is.null(value)) for(i in seq_along(column)){
-    stopifnot(length(column[[i]]) == length(value[[i]]))
-  }
+#   if(!is.null(value)) for(i in seq_along(column)){
+#     stopifnot(length(column[[i]]) == length(value[[i]]))
+#   } #MIGHT NOT NEED THIS>>> THINKING LENGTH OF COLUMNS SHOULD JUST MATCH LENGTH OF VALUES
   
   
   lst_details <- list()
@@ -92,7 +93,7 @@ hb.put <- function(table_name, column_family, rowkey, column, value = NULL,...){
     #format of hb.insert (list(rowkey, list(colspec, value)))
     lst_details[[i]] <- list(rowkey[i],
                              paste(column_family,column[[i]],sep = '::'),
-                             value[[i]])
+                             list(list(value[[i]])))
   }
   hb.insert(table_name, lst_details,...)
 }

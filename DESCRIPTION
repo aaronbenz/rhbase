@@ -9,6 +9,6 @@ Maintainer: Revolution Analytics <rhadoop@revolutionanalytics.com>
 Description: Functions to create,delete HBase tables and read/write/scan rows from HBase tables
 License: Apache License (== 2.0)
 Suggests: testthat
-Imports: dplyr (>= 0.4.0),
+Imports: data.table (>= 1.9.0),
     tidyr (>= 0.2.0),
     magrittr
