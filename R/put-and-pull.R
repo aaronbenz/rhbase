@@ -15,10 +15,10 @@
 #' This function serves to make pulling from HBase in R much more straightforward, particularily on how you receive the
 #' data. Following the pricipals that tidyr has set to accomplish, the retrieved valued is a data.frame in the following format:
 #' 
-hb.pull <- function(tablename,column_family = character(0), columns = NULL, start = "", end = NULL,...){
+hb.pull <- function(tablename,column_family = character(0), columns = NULL, start = "", end = NULL, batchsize = 1000,...){
   if(!is.null(columns)) column_family <- paste(column_family,columns,sep = '::') #TODO add iterator lapply
   getting <- hb.scan(tablename = tablename,startrow = start, end = end, colspec = column_family,...)
-  tmp = getting$get()
+  tmp = getting$get(batchsize = batchsize)
   getting$close
   
   ## Scans thr
