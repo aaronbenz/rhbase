@@ -4,14 +4,15 @@
 \alias{hb.pull}
 \title{Pull Data from HBase in tidyr principles}
 \usage{
-hb.pull(tablename, column_family, start = "", end = NULL, timestamp = 0,
-  caching = 0, filterstring = character(0), hbc = hb.defaults("hbc"),
-  sz = function(x) serialize(x, connection = NULL), usz = unserialize, ...)
+hb.pull(tablename, column_family = character(0), columns = NULL,
+  start = "", end = NULL, ...)
 }
 \arguments{
 \item{tablename}{The name of the desired HBase table}
 
 \item{column_family}{The column family desired - see details for specifying column}
+
+\item{columns}{The specific columns desired}
 
 \item{start}{The starting point a scan - first desired rowkey}
 
