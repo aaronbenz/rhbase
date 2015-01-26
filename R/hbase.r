@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+#NOTICE:: Aaron Benz aaron.n.benz@gmail.com has changed some of the contents of this file
+
  
 hb.defaults <- function(arg){
   if(missing(arg)){
@@ -152,14 +154,14 @@ hb.insert <- function(tablename, changes,sz=hb.defaults("sz"),hbc=hb.defaults("h
   batchmutation <- .Call("hbnewBatchMutation", length(changes));
   if(length(changes)==1){
     row=changes[[1]]
-    .Call("makeAndSendOneMutation", hbc,tablename,sz(row[[1]]), #the row id
+    .Call("makeAndSendOneMutation", hbc,tablename,charToRaw(row[[1]]), #the row id
           row[[2]], #name vector
           lapply(row[[3]],sz))
   }else{
     ## print(system.time(
     lapply(changes,function(row){
       .Call("addToCurrentBatch", batchmutation,
-            sz(row[[1]]), #the row id
+            charToRaw(row[[1]]), #the row id
             row[[2]], #name vector
             lapply(row[[3]],sz))
     })
@@ -175,11 +177,11 @@ hb.get <- function(tablename, rows, colspec,sz=hb.defaults("sz"),
                    usz=hb.defaults("usz"),hbc=hb.defaults("hbc")){
   if(!is.list(rows)) rows <- as.list(rows)
   y <- if(missing(colspec)){
-     .Call("hbgetRow",hbc, tablename,lapply(rows, sz))
+     .Call("hbgetRow",hbc, tablename,lapply(rows, charToRaw))
    }else{
-     .Call("hbgetRowWithColumns",hbc,tablename,lapply(rows, sz),colspec)
+     .Call("hbgetRowWithColumns",hbc,tablename,lapply(rows, charToRaw),colspec)
    }
-  lapply(y,function(r) list(usz(r[[1]]),r[[2]],lapply(r[[3]],usz)))
+  lapply(y,function(r) list(rawToChar(r[[1]]),r[[2]],lapply(r[[3]],usz)))
 }
 
  hb.delete <- function(tablename, rows, colspec,sz=hb.defaults("sz"),
@@ -196,9 +198,9 @@ hb.get <- function(tablename, rows, colspec,sz=hb.defaults("sz"),
   if(!is.list(rows)) rows <- as.list(rows)
   y <- if(missing(colspec)){
     if(!allversions) stop("allversions=FALSE only works when colspec is provided")
-     .Call("hbdeleteAllRow",hbc, tablename,lapply(rows, sz),as.logical(allversions))
+     .Call("hbdeleteAllRow",hbc, tablename,lapply(rows, charToRaw),as.logical(allversions))
    }else{
-     .Call("hbdeleteAll",hbc,tablename,lapply(rows, sz),colspec,as.logical(allversions))
+     .Call("hbdeleteAll",hbc,tablename,lapply(rows, charToRaw),colspec,as.logical(allversions))
    }
   TRUE
 }
@@ -210,13 +212,13 @@ hb.scan <- function(tablename, startrow, end=NULL, colspec,sz=hb.defaults("sz"),
   if(is.null(sz)) stop("Need to initialize a connection. See ?hb.init()")
   if(missing(colspec)) stop("Enter a colspec vector, e.g. c('x:f','x:u')")
   if(!is.null(end)){
-    scanner <- .Call("hbScannerOpenFilter", hbc, tablename, sz(startrow), sz(end), colspec,as.integer(0))
+    scanner <- .Call("hbScannerOpenFilter", hbc, tablename, charToRaw(startrow), charToRaw(end), colspec,as.integer(0))
   }else{
-    scanner <- .Call("hbScannerOpenFilter", hbc, tablename, sz(startrow), "", colspec,as.integer(2))
+    scanner <- .Call("hbScannerOpenFilter", hbc, tablename, charToRaw(startrow), "", colspec,as.integer(2))
   }
   mu <- function(batchsize=1000){
     x <- .Call("hbScannerGetList",hbc,scanner, as.integer(batchsize))
-    lapply(x,function(r) list(usz(r[[1]]),r[[2]],lapply(r[[3]],usz)))
+    lapply(x,function(r) list(rawToChar(r[[1]]),r[[2]],lapply(r[[3]],usz)))
   }
   fu <- function(){
     invisible(.Call("hbCloseScanner",hbc,scanner))
@@ -227,10 +229,10 @@ hb.scan <- function(tablename, startrow, end=NULL, colspec,sz=hb.defaults("sz"),
 hb.scan.ex <- function(tablename, startrow="", end=NULL, colspec=character(0), timestamp=0, caching=0, filterstring=character(0), sz=function(x) serialize(x,connection = NULL), usz=hb.defaults("usz"),
                     hbc=hb.defaults("hbc")){
   ## Scans thr
-  scanner <- .Call("hbScannerOpenFilterEx", hbc, tablename, sz(startrow), sz(end), colspec, timestamp, as.integer(caching),filterstring)
+  scanner <- .Call("hbScannerOpenFilterEx", hbc, tablename, charToRaw(startrow), charToRaw(end), colspec, timestamp, as.integer(caching),filterstring)
   mu <- function(batchsize=1000){
     x <- .Call("hbScannerGetList",hbc,scanner, as.integer(batchsize))
-    lapply(x,function(r) list(usz(r[[1]]),r[[2]],lapply(r[[3]],usz)))
+    lapply(x,function(r) list(rawToChar(r[[1]]),r[[2]],lapply(r[[3]],usz)))
   }
   fu <- function(){
     invisible(.Call("hbCloseScanner",hbc,scanner))
@@ -246,7 +248,7 @@ hb.insert.data.frame <- function(tablename, df,sz=hb.defaults("sz"),hbc=hb.defau
   rown <- rownames(df)
   coln <- colnames(df)
   if(is.null(coln)) stop("df does not have column names")
-  .Call("addAndSendDFBatch" ,hbc,tablename,lapply(rown,sz), coln ,lapply(1:nrow(df),function(r) lapply(as.list(df[r,]),sz)))
+  .Call("addAndSendDFBatch" ,hbc,tablename,lapply(rown,charToRaw), coln ,lapply(1:nrow(df),function(r) lapply(as.list(df[r,]),sz)))
   TRUE
 }
 

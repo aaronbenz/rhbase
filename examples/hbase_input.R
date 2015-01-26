@@ -49,11 +49,14 @@ time = Sys.time()
 input_hbase(files, table = TABLE_NAME,c.family = COLUMN_FAMILY)
 end = Sys.time()
 end - time
+#sweet, about 12 seconds to read and push
 
 hb.init()
 retrieved <- hb.pull(TABLE_NAME,COLUMN_FAMILY,batchsize = 10)
   
+#testing to push back in
+hb.put(TABLE_NAME, retrieved$column_family, rowkey = retrieved$rowkey, column = paste0(retrieved$column,"new"), value = retrieved$values)
   
-  
+hb.pull(TABLE_NAME, COLUMN_FAMILY, start = "ATL::20140302",batchsize = 10)
   
   

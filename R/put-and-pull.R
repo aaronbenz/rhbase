@@ -38,6 +38,7 @@ hb.pull <- function(tablename,column_family = character(0), columns = NULL, star
             data.table(rowkey = x[[1]], colspec = unlist(x[[2]]), values = unlist(x[[3]],recursive = FALSE))
           })
   tmp <- data.table::rbindlist(tmp)
+  if(nrow(tmp) == 0 & length(tmp) == 0) stop("Nothing Returned from HBase")
   tidyr::separate(data = tmp,col = "colspec",into = c("column_family","column"),sep = "::")
 }
 
@@ -67,6 +68,10 @@ hb.put <- function(table_name, column_family, rowkey, column, value = NULL,...){
   #basically, if column is a vector, length should match rowkey OR there should only be 1 rowkey
   if(!is.null(value) && !is.list(value)) stop("value must be a list")
   if(!is.vector(column)) stop("column must be a vector") #TODO needs to be 1 deminsional
+  
+  #handle the case of 1 column family versus multiple (if multiple, has to be same length as rowkey)
+  if(length(column_family) == 1) column_family <- rep(column_family, length(rowkey))
+  if(length(rowkey) != length(column_family)) stop("You must either use 1 column family, or the number of column families must be the same as the number of rowkeys")
 #   if(is.vector(column) & !is.list(column)){
 #     if(length(column) == length(rowkey)) column = as.list(column)
 #     else column <- list(column)
@@ -77,7 +82,6 @@ hb.put <- function(table_name, column_family, rowkey, column, value = NULL,...){
   }
   stopifnot(is.list(value),
             length(table_name) == 1 & nrow(table_name) == 1, #only support for one table name and
-            length(column_family) == 1 & nrow(column_family) == 1, #one column family at a time
             length(column) == length(value), 
             length(rowkey) == length(column)) #since now a list, should be equal
   
@@ -92,7 +96,7 @@ hb.put <- function(table_name, column_family, rowkey, column, value = NULL,...){
   for(i in seq_along(rowkey)){
     #format of hb.insert (list(rowkey, list(colspec, value)))
     lst_details[[i]] <- list(rowkey[i],
-                             paste(column_family,column[[i]],sep = '::'),
+                             paste(column_family[[i]],column[[i]],sep = '::'),
                              list(list(value[[i]])))
   }
   hb.insert(table_name, lst_details,...)
