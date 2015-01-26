@@ -16,10 +16,10 @@
 #' data. Following the pricipals that tidyr has set to accomplish, the retrieved valued is a data.frame in the following format:
 #' 
 hb.pull <- function(tablename,column_family = character(0), columns = NULL, start = "", end = NULL,...){
-  if(!is.null(columns)) column_family <- paste(column_family,columns,sep = ':') #TODO add iterator lapply
-  foo <- hb.scan(tablename = tablename,startrow = start, end = end, colspec = column_family,...)
-  tmp = foo$get()
-  foo$close
+  if(!is.null(columns)) column_family <- paste(column_family,columns,sep = '::') #TODO add iterator lapply
+  getting <- hb.scan(tablename = tablename,startrow = start, end = end, colspec = column_family,...)
+  tmp = getting$get()
+  getting$close
   
   ## Scans thr
 #   scanner <- .Call("hbScannerOpenFilterEx", hbc, tablename, sz(start), sz(end), column_family, timestamp, as.integer(caching),filterstring)
@@ -35,10 +35,10 @@ hb.pull <- function(tablename,column_family = character(0), columns = NULL, star
 #     data.frame(rowkey = x[[1]], colspec = unlist(x[[2]]), values = unlist(x[[3]]))
 #   })
   tmp  <- lapply(tmp, function(x){
-  data.frame(rowkey = x[[1]], colspec = unlist(x[[2]]), values = unlist(x[[3]]))
-  })
-  tmp <- dplyr::bind_rows(tmp)
-  tidyr::separate(data = tmp,col = "colspec",into = c("column_family","column"),sep = ":")
+            data.table(rowkey = x[[1]], colspec = unlist(x[[2]]), values = unlist(x[[3]]))
+          })
+  tmp <- data.table::rbindlist(tmp)
+  tidyr::separate(data = tmp,col = "colspec",into = c("column_family","column"),sep = "::")
 }
 
 #more easily put data into hbase
@@ -56,12 +56,10 @@ hb.pull <- function(tablename,column_family = character(0), columns = NULL, star
 #' the top level domain. Within a table are column families, within those are rowkeys, and within those are columns.
 #' This allows you to possbily input data using vectors and lists of different sizes. See the examples section to see
 #' both of these options detailed.
-#' @examples
-#' hostLoc = '127.0.0.1'  #Give your server IP
+#' @examples hostLoc = '127.0.0.1'  #Give your server IP
 #' port = 9090  #Default port for thrift service
 #' hb.init(serialize = "character")
 #' TABLE_NAME = "Test"
-#' 
 hb.put <- function(table_name, column_family, rowkey, column, value = NULL,...){
   #Need to address special case. Namely, if you give a vector of columns, one for each rowkey
   #basically, if column is a vector, length should match rowkey OR there should only be 1 rowkey
@@ -93,7 +91,7 @@ hb.put <- function(table_name, column_family, rowkey, column, value = NULL,...){
   for(i in seq_along(rowkey)){
     #format of hb.insert (list(rowkey, list(colspec, value)))
     lst_details[[i]] <- list(rowkey[i],
-                             paste(column_family,column[[i]],sep = ':'),
+                             paste(column_family,column[[i]],sep = '::'),
                              value[[i]])
   }
   hb.insert(table_name, lst_details,...)
