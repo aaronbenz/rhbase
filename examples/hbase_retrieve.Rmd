@@ -1,0 +1,22 @@
+---
+title: "hbase_retrieve"
+output: html_document
+---
+
+####This Document Describes and example of Pulling Data from HBase, doing some calculations on it, and storing the results
+
+Ok, so now that our data is in HBase, lets create a plan for:
+1. Retrieving Data with rhbase
+2. Manipulating Data using Tidyr
+3. Performing Calculations with timeseriesr
+4. Storing Our Results using rhbase
+
+Note: This example will be using the rhbase version provided by Aaron Benz, originally forked from Revo R's repo on github. For more information check out github.com/aaronbenz
+
+```{r}
+```
+
+
+```{r, echo=FALSE}
+```
+
