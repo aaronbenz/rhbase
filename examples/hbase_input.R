@@ -57,6 +57,8 @@ retrieved <- hb.pull(TABLE_NAME,COLUMN_FAMILY,batchsize = 10)
 #testing to push back in
 hb.put(TABLE_NAME, retrieved$column_family, rowkey = retrieved$rowkey, column = paste0(retrieved$column,"new"), value = retrieved$values)
   
-hb.pull(TABLE_NAME, COLUMN_FAMILY, start = "ATL::20140302",batchsize = 10)
+#example retrieving only from 03/07/2014 onward for LAX
+hb.pull(TABLE_NAME, COLUMN_FAMILY, start = "LAX::20140307", end = "LAXa",batchsize = 100)
   
-  
+#example retrieving everything between 03/03/2014 and 03/07/2014 (so nothin on the 7th)
+hb.pull(TABLE_NAME, COLUMN_FAMILY, start = "LAX::20140304", end = "LAX::20140307",batchsize = 100)

@@ -13,7 +13,34 @@ Ok, so now that our data is in HBase, lets create a plan for:
 
 Note: This example will be using the rhbase version provided by Aaron Benz, originally forked from Revo R's repo on github. For more information check out github.com/aaronbenz
 
+Assumption: Followed previous example so that HBase and thrift are running, rhbase is installed, and data is available.
+
+###Retrieving Data with rhbase
+So we know that our is stored as data.tables via byte arrays in HBase. By using hb.pull, we will be able to pull our desired HBase data. But what do we want to pull?
+
+The preconseption of this data is that we are going to be using data collected from Airport Support Vehicles (like a baggage truck), and measure their fuel consumption. To do so, we are calling in gear, rpm, and speed (the three variables we put in HBase). So, we need to call those 3 variables, but lets be careful, cause we wouldn't want to bring in too much with memory limitations.
+
+Currently, each variable is stored in a column. The airport, the day of the occurance, and the vehicle identification number (VIN) are the rowkey that points directly to all our variables. As mentioned earlier, depending on the size of your data, there are other ways to model your data. For our sake, we have assumed that the data was being compressed as it would not have in a live streaming environment. Ok, so back to retrieving data. Based on how we modeled our data (which SHOULD ALWAYS be based on our retrieval patterns in a NoSQL Columnar store), we are going to retrieve ALL variables for ALL VINs by EACH day for EACH airport. 
+
+In many situations, you would be looking at a chunk in time. Given our small dataset, lets assume ours is between 03/01/2014 and 03/07/2014. 
+
+In some other metadata table, there should have been a description of what airports are available. We are dealing with 8:
+```{r, echo = FALSE}
+airports <- c("ATL","DEN","DFW","JFK","LAX","MIA","ORD","SEA","SFO")
+```
+Additionally, we know we want all dates between the 1st and 7th of March 2014
+```{r,echo = FALSE}
+dates <- paste0("2014030", 1:7)
+```
+Now, lets use `expand.grid` to get all of those combinations (Again, the reason for pulling by each subset is to limit the amount of data that is in memory)
+```{r,echo = FALSE}
+expand.grid(airports, dates)
+```
+
+
+
 ```{r}
+
 ```
 
 
