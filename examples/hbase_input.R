@@ -26,7 +26,7 @@ prepare <- function(file){
   #serialize data.table
   value <- file %>%
     data.table::fread()
-  
+  if(class(value[[2]]) != "double") value[[2]] <- as.double(value[[2]]) #all doubles for later ;)
   #get rowkey and column
   str <- unlist(strsplit(file,split = "/"))
   rowkey <- paste(str[(length(str)-3):(length(str)-1)],collapse = "::")
