@@ -1,39 +1,41 @@
 ---
-title: "hbase_retrieve"
+title: "Retrieving from HBase with R"
 output: html_document
 ---
 
-####This Document Describes and example of Pulling Data from HBase, doing some calculations on it, and storing the results
-
-Ok, so now that data is in HBase, lets create a plan for:
-
-1. Retrieving Data with rhbase
-2. Manipulating Data using Tidyr
-3. Performing Calculations with timeseriesr
-4. Storing Our Results using rhbase
+This document serves as a tutorial for pulling data from HBase, doing some calculations on it, and storing the results back into HBase
 
 **Note:** This example will be using the rhbase version provided by Aaron Benz, originally forked from Revo R's repo on github. For more information check out github.com/aaronbenz
 
 **Assumption:** Followed previous example so that HBase and thrift are running, rhbase is installed, and data is available.
 
-###Retrieving Data with rhbase
-So we know that data is stored as data.tables via byte arrays in HBase (from hbase_input document). By using hb.pull, we will be able to pull our desired HBase data. But what do we want to pull?
+Ok, so now that data is in HBase, lets:
 
-This fake data is from Airport Support Vehicles (like a baggage truck), and our goal is to measure their total fuel consumption. To do so, we are calling in gear, rpm, and speed (the three variables we put in HBase), so that we can apply a custom made fuel calculator in R. But lets be careful, about how we bring this in, as too much data could easily lead to memory problems.
+1. **Retrieve Data with rhbase**
+2. **Manipulate Data using Tidyr + data.table + timeseriesr**
+3. **Perform Calculations with timeseriesr**
+4. **Store Our Results using rhbase**
 
-Currently, each variable is stored in a column. The airport, the day of the occurance, and the vehicle identification number (VIN) are the rowkey that points directly to all our variables. As mentioned earlier, depending on the size of your data, there are other ways to model your data. For our sake, we have assumed that the data was being compressed (unlike a general use case live streaming environment). Ok, so back to retrieving data. Based on how we modeled our data (which SHOULD ALWAYS be based on our retrieval patterns in a NoSQL Columnar store), we are going to **retrieve ALL variables for ALL VINs by EACH day for EACH airport**. 
 
-In some other metadata table, there should have been a description of what airports are available. To keep it simple, we are dealing with 8:
+
+##Retrieving Data with rhbase
+From the HBase input tutorial, we stored data.tables via byte arrays in HBase (from hbase_input document). By using hb.pull, we will be able to pull our desired HBase data. But what do we want to pull?
+
+The fake data is from Airport Support Vehicles (like a baggage truck), and our goal is to measure their total fuel consumption. To do so, we are calling in gear, rpm, and speed (the three variables we put in HBase), so that we can apply a custom made fuel calculator in R. But lets be careful about how we bring this in, as too much data could easily lead to memory problems.
+
+Currently, each variable is stored in a column. The concatenation of the airport, the day of the occurrence, and the vehicle identification number (VIN) make the row key that points directly to all our variables. As mentioned earlier, depending on the size of your data, there are other ways to model your data. For our sake, we loaded  compressed data which might have originated in a live streaming model that is much different. OK, so back to retrieving data... Based on how we modeled our data (sorry for the overkill, but it SHOULD ALWAYS be based on our retrieval patterns in a NoSQL Columnar store), we are going to **retrieve ALL variables for ALL VINs by EACH day for EACH airport**. 
+
+In some other metadata table, there should have been a description of what airports are available. We are dealing with 8:
 ```{r}
 airports <- c("ATL","DEN","DFW","JFK","LAX","MIA","ORD","SEA","SFO")
 ```
-Additionally, we know we want all dates between the 1st and 7th of March 2014
+Additionally, we know we want all dates between the 1st and 7th of March 2014.
 ```{r}
 start_dates <- paste0("2014030", 1:6)
 end_dates <- paste0("2014030", 2:7)
 ```
 
-Now lets create a function that will pull back all of the variables 1 VIN 1 Day at a time.
+Now lets create a function that will pull back all of the variables 1 VIN 1 Day at a time (this is done to demonstrate responsible memory management.)
 ```{r}
 library(data.table)
 scan_rk_generator <- function(start, end, ...){
@@ -46,13 +48,104 @@ march <- scan_rk_generator(start_dates, end_dates, sep = "::")
 ```
 
 
-####Doing a fuel rate calculation
-Now our functional `march` allows us to have all of the timestamps we want for each airport. For example:
+
+Now our functional `march` allows us to have all of the time stamps we want for each airport. For example:
 ```{r}
 march(airports[1])
 ```
 
 Don't you just love how easy R is? This output will feed our function to call HBase for each day for each airport. But before we start bringing data in, lets make sure we know what we are doing once we have it... aka, lets make a fuel calculation based off of the some general information given about cars (YES, if you had a variable called fuel calculation, this would be a great time to do some actual regression analysis and apply it to all of your other airports and trucks. We are gonna assume that I came up with that magical formula).
+
+
+##Pull data, merge, and calculate
+OK, so now that we have our calculation, lets:
+1. Bring in some data for 1 day
+2. Merge the data together to do a proper fuel calculation of `gal_per_hr`, average speed, and time in use
+3. Visualize some of the results
+
+```{r}
+a_day <- march(airports[1])[1]
+```
+
+OK, time to bring in some data
+```{r}
+library(rhbase)
+library(magrittr)
+hb.init()
+data <- hb.pull("Test","test",start = a_day[[1]], end = a_day[[2]], columns = c("gear","rpm","speed"))
+data[1:6]
+```
+
+WHOAAAA, dataaaaa!!!!! So whats this stuff actually look like?
+
+##Manipulate Data with Tidyr + data.table + timeseriesr
+
+
+OK, lets do something with that stuff. Our goal is this: to combine the gear, rpm, and speed data.tables by VIN. Our basic steps to doing so:
+1. Split the row key to make the values meaningful with tidyr
+2. Combine data.tables with VIN in mind
+3. Clean up merged data
+
+1. Split with tidyr
+```{r}
+data <- data %>%
+  tidyr::separate(col = "rowkey", into = c("airport","day","vin"))
+data[1:5]
+```
+
+2. Combine by vin + column with rbindlist
+```{r}
+#rbind by variable
+setkeyv(data, c("vin", "column"))
+
+merge_em <- function(values){
+  if(length(values)<=1) return(values)
+  out <- values[[1]]
+  for(i in 2:length(values)){
+    out <- merge(out,values[[i]],all=T,by = "date_time")
+  }
+  out
+}
+data2 <- data[,list("rbinded" = list(merge_em(values))),by=c("vin","day","airport")] #data.table functionality
+data2$rbinded[[1]] %>% setDT
+```
+3. Clean up our data with timeseriesr. Essentially, because our time stamps for each variable were not guaranteed to match, we probably (and do) have NA values in each data set. This use of `dtreplace` will take any NA values and replace them with the Last Observation. 
+```{r}
+data2$rbinded <- data2$rbinded %>% lapply(timeseriesr::dtreplace)  %>% lapply(setDT)#fills in missing NAs
+data2$rbinded[[1]]
+```
+4. Now lets see what this baby looks like:
+```{r, echo=FALSE}
+plot_time_series <- function(data_table, time_variable = "time", y = "value", color_by = NULL, facet_by = NULL,facet_text_size = 10,title = paste(data_table$well_id[1], "\n ",calc_time_range(data_table))){
+    data_table$facet_by_this <- data_table[[facet_by]]
+    col <- rainbow(30)
+    col.index <- ifelse(seq(col) %% 2, 
+                        seq(col), 
+                        (seq(ceiling(length(col)/2), length.out=length(col)) %% length(col)) + 1)
+    mixed <- col[col.index]
+    
+    data_table[[time_variable]] <- as.POSIXct(data_table[[time_variable]], origin = "1970-01-01")
+    p <- ggplot(data_table,aes_string(time_variable ,y, color = color_by))+
+        geom_step()+
+        
+        facet_grid(facet_by_this~., scales = "free") +
+        labs(title = title, x = 'Time', y = '' ,size = 10)+
+        
+        theme(
+            panel.grid.minor = element_blank(), 
+            panel.background = element_blank(),
+            plot.background = element_blank()) +
+        theme(text = element_text(size=facet_text_size)) +
+        scale_color_manual(values=rep(mixed, length.out=nrow(data_table)))
+    return(p)
+    
+}
+tmp <- tidyr::gather(data2$rbinded[[1]],key = "variable",value = "value",-date_time)
+plot_time_series(tmp, time_variable = "date_time",color_by = "variable")
+```
+####Perform our calculations with timeseriesr
+
+3.Now lets do our calculation!!! Below is the a function that will be used to calculate the gal_per_hr from our 3 variables (rpm, gear, and speed)
 ```{r}
 #I basically estimated this by looking at some relations between acceleration, vehicle weight, torque, and all of the other things you see below on the magical world wide web
   
@@ -80,88 +173,38 @@ gal_per_hr = function(engine_gear, engine_rpm, time, speed, alpha = .7, mass = 1
 }
 ```
 
-###Pull data, merge, and calculate
-OK, so now that we have our calculation, lets:
-1. Bring in some data for 1 day
-2. Merge the data together to do a proper fuel calculation of `gal_per_hr`
-3. Visualize some of the results
-
-```{r}
-a_day <- march(airports[1])[1]
-```
-
-Ok, time to bring in some data
-```{r}
-library(rhbase)
-library(magrittr)
-hb.init()
-data <- hb.pull("Test","test",start = a_day[[1]], end = a_day[[2]], columns = c("gear","rpm","speed"))
-data[1:6]
-```
-
-WHOAAAA, dataaaaa!!!!! 
-
-Ok, lets do something with that stuff. Our goal is this: to combine the gear, rpm, and speed data.tables by VIN. Our basic steps to doing so:
-1. Split the rowkey to make the values meaningful with tidyr
-2. Combine data.tables with VIN in mind
-3. Perform our calculation by VIN
-
-1. Split with tidyr
-```{r}
-data <- data %>%
-  tidyr::separate(col = "rowkey", into = c("airport","day","vin"))
-data[1:5]
-```
-
-2. Combine by vin + column with rbindlist
-```{r}
-#rbind by variable
-setkeyv(data, c("vin", "column"))
-
-merge_em <- function(values){
-  if(length(values)<=1) return(values)
-  out <- values[[1]]
-  for(i in 2:length(values)){
-    out <- merge(out,values[[i]],all=T,by = "date_time")
-  }
-  out
-}
-data2 <- data[,list("rbinded" = list(merge_em(values))),by=c("vin","day","airport")] #data.table functionality
-data2$rbinded <- data2$rbinded %>% lapply(timeseriesr::dtreplace)  %>% lapply(setDT)#fills in missing NAs
-#of course there are plenty of other ways of doing that, including rbinding and using something like spread
-data2$rbinded[[1]]
-```
-
-3.Now lets do our calculation!!!
-First, we need to make fill in any "missing" gaps with the last known variable
+Actually perform that operation
 ```{r}
 data2$rbinded <- lapply(data2$rbinded,function(i){
-                        i$gal_per_sec <- gal_per_hr(engine_gear = i$gear, engine_rpm = i$rpm, speed = i$speed, time = i$date_time)/60/60 #current its in hours, but want it to be in seconds as the time column is in seconds
+                        i$gal_per_sec <- gal_per_hr(engine_gear = i$gear, engine_rpm = i$rpm, speed = i$speed, time = i$date_time)/60/60 #currently in hours, but want it to be in seconds as the time column is in seconds
                         i %>% setDT
                         })
 data2$rbinded[[1]]
 ```
-Sweeeeeet!!! So now we have done our main calculation. But we want to know the total amount of gallons each truck burned per day.
+Sweeeeeet!!! So now we have done our main calculation. But we want to know the total amount of gallons each truck burned per day. We are going to use `calc_area`, which is a timeseriesr function that essentially calculates the area under the curve. It is simply using Riemann left sum approach, but others will probably be added soon enough (if your data is compressed and de-duplicated then its the right approach)
 ```{r}
+#calculates area under the curve as a total
 data2$gallons <- data2$rbinded %>%
                         sapply(function(x) timeseriesr::calc_area(time_date = x$date_time, value = x$gal_per_sec))
+#calculates the total time range in hours (data is recorded in seconds)
 data2$hours <- data2$rbinded %>%
                         sapply(function(x) (max(x$date_time) - min(x$date_time))/60/60)
+#calculates the average speed
 data2$mph <- data2$rbinded %>%
                         sapply(function(x) mean(x$speed))
 data2[,gal_per_hr := gallons/hours]
-data2
 ```
-Bada Bing Bada Boom aka BBBB. We have now calculated the total amount of gallons that each truck burned, the total hours it ran, miles per hour, and its average gallons per hour. Now, lets put all of this back into HBase to move onto the day/airport. 
+**Bada Bing Bada Boom aka BBBB**. We have now calculated the total amount of gallons that each truck burned, the total hours it ran, miles per hour, and its average gallons per hour. Now, lets put all of this back into HBase to move onto the day/airport. 
 
-We are going to store all of the information that we collected back into the same hbase table for later use. That includes:
-1. rbinded table (cause we might want to reuse it later)
+##Store Our Results using rhbase
+We are going to store all of the information that we collected back into the same HBase table for later use. That includes:
+1. rbinded data.table (cause we might want to reuse it later)
 2. gallons
-3. hours
+3. total hours in operation
 4. gal_per_hr
-5. mph
+5. average mph
 
-To do this we need to slightly reorganze our table (hopefully in the future I/someone will add a small wrapper to take care of this) to fit the `hb.put` standards. The `tidyr` package allows us to do this with ease.
+To do this we need to slightly reorganize our table (hopefully in the future I/someone will add a small wrapper to take care of this) to fit the `hb.put` standards. None the less `tidyr` package allows us to do this with ease.
 ```{r}
 #First, create rowkey with unite
 data3 <- tidyr::unite(data2, "rowkey",airport:vin,sep = "::")
@@ -170,7 +213,8 @@ data3 <- tidyr::unite(data2, "rowkey",airport:vin,sep = "::")
 data3 <- tidyr::gather(data3, column, value, -rowkey,convert = T)
 data3[c(1,6,11,16,21)]
 ```
-Great!!! Now that we have it in the format we want, let put it back in HBase
+
+Great!!! Now that we have it in the format we want, lets put it back in HBase
 ```{r}
 #Assuming the hb.init connection is still valid
 hb.put("Test","test",rowkey = data3$rowkey, column = data3$column, value = data3$value)
@@ -181,10 +225,10 @@ And just to test it out, lets see what happens when we pull back one of the new 
 hb.pull("Test","test",c("gal_per_hr","rbinded"))
 ```
 
-BBBB!!! Pretty cool right? 
+**BBBB!!!** Pretty cool right? 
 
-Whats great about this is that you can easily parallel this operation across multiple nodes/clusters. Check out the rparallel package or even the rmr2 package for more details. 
+Whats great about this is that you can easily parallel this operation across multiple cores/nodes/clusters because we broke it down in intervals (airport and date). Check out the rparallel package or even the rmr2 package for more details of how to do that. 
 
-If you have any suggestions, comments, or questions please feel free to contact me. Also if you would like to futher contribute to the rhbase fork or timeseriesr package, I welcome all aboard.
+If you have any suggestions, comments, or questions please feel free to contact me. Also if you would like to further contribute to the rhbase fork or timeseriesr package, I welcome all aboard.
 
 
