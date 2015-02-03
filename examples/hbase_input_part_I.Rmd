@@ -1,0 +1,115 @@
+---
+title: "Intro to HBase via R aka rhbase part I"
+author: "Aaron Benz"
+date: "02/01/2015"
+output: html_document
+---
+###Intro
+Hello, and welcome to a brief introduction to HBase by way of R. This tutourial is aimed at explaining how you can use R through the rhbase package. However, it will use my little custom addition to rhbase which is geared towards using tidyr principals and data.tables/data.frames. Other differences include:
+
+1. Standardized rowkey serializer (raw data type)
+2. sz and usz functions only apply to the actual data instead of rowkey
+3. hb.put - wrapper around hb.insert for easier inputting
+4. hb.pull - wrapper around hb.scan for easier retrieval
+
+###IDK My BFF HBase???
+Hopefully you have some knowledge of what HBase is, because after all, you are reading this. By no means will I attempt to explain all of HBase, but here is a brief attempt to summarize the mammoth:
+
+**Wikipedias definition**: HBase is an open source, non-relational, distributed database modeled after Google's BigTable and written in Java. It is developed as part of Apache Software Foundation's Apache Hadoop project and runs on top of HDFS (Hadoop Distributed Filesystem), providing BigTable-like capabilities for Hadoop.
+
+1. Part of the **Hadoop Ecosystem**. A full implementation relies on HDFS, Zookeeper, and your HBase region master(s)
+2. A **NoSQL Columnar Database**
+  - To RDBMS minds and a like, its best to think of HBase (and NoSQL Columnar in general) as an ultimate 1 way indexing tool (aka no kind of reverse indexing here). 
+  - First there is a HBase **table**, which is exactly what you would think it is... a table
+  - Within a table are **column families**, which is basically just a subgroup of your table. Best practice is to limit the number and size of these, so if you are new to HBase, just pretend you only have 1 as in most cases that is all that is neccessary. 
+  - All data is then accessed via a **rowkey**, which is essentially your indexing mechanism (enter rowkey or range of rowkeys, and BLAM, data)
+  - Within a given row, there can be potentially millions of columns. This is the concept of **wide rows**. Although it can certainly be used for many things, time-series data is a good use case as it allows you to store a time values as column values, and then the variable value in a cell (the variable name would be in the row key). This concept is often hard to grasp the first time, so I have provided some visuals to help explain it. Many people's breakthrough on this concept is often when they realize that values are/can be stored as columns. 
+  - Schemaless. You do not need to add columns in advance ever, you can simply do it on the fly. However, is advised that you keep record of how you are storing data as the actual retrieval will be made very difficult if you have no idea whats in there.
+3. Data modeling: **Based off query patterns and stored directly**. Cross-table joins are a BAD thing (Spark can help with this). Essentially you are sacrificing complex querying for huge speed gains.
+
+So hopefully that helped, and if not, there is plenty of information out there about HBase and what it does. Here are a few links:
+
+- [Apache HBase](http://hbase.apache.org/)
+- [Wikipedia](http://en.wikipedia.org/wiki/Apache_HBase)
+- [Hortonworks](http://hortonworks.com/hadoop/hbase/)
+
+###Installing HBase and rhbase
+In order to use this stuff, you have to install HBase, thrift (yes, sorry, it uses thrift), and the rhbase. The basic instructions are found [here](https://github.com/RevolutionAnalytics/RHadoop/wiki/user-rhbase-Home), but if you are trying to get up and running as soon as possible, here are a few helpful hints:
+
+1. Install Thrift following this [guide](http://thrift.apache.org/docs/install/)
+2. Update PKG_CONFIG_PATH: export PKG_CONFIG_PATH=$PKG_CONFIG_PATH:/usr/local/lib/pkgconfig/
+3. Verifiy pkg-config path is correct: pkg-config --cflags thrift , returns: -I/usr/local/include/thrift
+4. Copy Thrift library sudo cp /usr/local/lib/libthrift-0.8.0.so /usr/lib/ 
+5. Install HBase following Apache's quickstart [guide](http://hbase.apache.org/book.html#quickstart)
+6. Start up HBase and Thrift
+```
+[hbase-root]/bin/start-hbase.sh
+[hbase-root]/bin/hbase thrift start
+```
+7. Now download and install that baby with devtools (or get an original tarball copy [here](https://github.com/RevolutionAnalytics/rhbase/blob/master/build/rhbase_1.2.1.tar.gz?raw=true))
+
+##Getting Data Into HBase with R
+#serialize R objects
+library(data.table)
+library(magrittr)
+library(parallel)
+library(rhbase)
+files <- list.files("~/Documents/data",pattern = ".csv",recursive = T,full.names = T)
+
+#rowkey = airport::day::vin#
+#column = variable
+#value = byte array
+
+#create hbase table
+hostLoc = '127.0.0.1'  #Give your server IP
+port = 9090  #Default port for thrift service
+hb.init()
+hb.list.tables()
+TABLE_NAME = "Test"
+COLUMN_FAMILY = "test"
+hb.delete.table(TABLE_NAME)
+hb.new.table(TABLE_NAME, COLUMN_FAMILY)
+
+# input_hbase<- data.table(rowkey = character(0), column = character(0), value = raw())
+
+#reads file returns neccessary info for sending to hbase
+prepare <- function(file){
+  #serialize data.table
+  value <- file %>%
+    data.table::fread()
+  if(class(value[[2]]) != "double") value[[2]] <- as.double(value[[2]]) #all doubles for later ;)
+  #get rowkey and column
+  str <- unlist(strsplit(file,split = "/"))
+  rowkey <- paste(str[(length(str)-3):(length(str)-1)],collapse = "::")
+  column <- sub(".csv","",str[length(str)])
+  data.table(rowkey,column,value = list(value)) #data.tables can have a vector of lists!!!
+ }
+
+#takes a vector of files, uses prepare to prep them (should include rowky column and value columns), and then
+#puts them into hbase
+input_hbase <- function(files, table, c.family,...){
+  lapply(files,function(x){
+    dt <- prepare(x)
+    hb.put(table_name = table, column_family = c.family, rowkey = dt$rowkey, column = dt$column, value = dt$value,...)
+    print(paste(x,"completed"))
+  })
+}
+
+#send to hbase
+time = Sys.time()
+input_hbase(files, table = TABLE_NAME,c.family = COLUMN_FAMILY)
+end = Sys.time()
+end - time
+#sweet, about 12 seconds to read and push
+
+hb.init()
+retrieved <- hb.pull(TABLE_NAME,COLUMN_FAMILY,batchsize = 10)
+  
+#testing to push back in
+hb.put(TABLE_NAME, retrieved$column_family, rowkey = retrieved$rowkey, column = paste0(retrieved$column,"new"), value = retrieved$values)
+  
+#example retrieving only from 03/07/2014 onward for LAX
+hb.pull(TABLE_NAME, COLUMN_FAMILY, start = "LAX::20140307", end = "LAXa",batchsize = 100)
+  
+#example retrieving everything between 03/03/2014 and 03/07/2014 (so nothin on the 7th)
+hb.pull(TABLE_NAME, COLUMN_FAMILY, start = "LAX::20140304", end = "LAX::20140307",batchsize = 100)
