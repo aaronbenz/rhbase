@@ -12,6 +12,12 @@ Hello, and welcome to a brief introduction to HBase by way of R. This tutourial 
 3. hb.put - wrapper around hb.insert for easier inputting
 4. hb.pull - wrapper around hb.scan for easier retrieval
 
+So what will you get out of this? Good question. It is broken down into three parts:
+
+1. Getting HBase, Thrift, and rhbase installed and working + breif intro + data intro
+2. Inserting Data into HBase + HBase Basic Design/Modelling 
+3. Retrieving Data from HBase, doing calculations, and inserting calculations
+
 ###IDK My BFF HBase???
 Hopefully you have some knowledge of what HBase is, because after all, you are reading this. By no means will I attempt to explain all of HBase, but here is a brief attempt to summarize the mammoth:
 
@@ -46,70 +52,106 @@ In order to use this stuff, you have to install HBase, thrift (yes, sorry, it us
 [hbase-root]/bin/start-hbase.sh
 [hbase-root]/bin/hbase thrift start
 ```
-7. Now download and install that baby with devtools (or get an original tarball copy [here](https://github.com/RevolutionAnalytics/rhbase/blob/master/build/rhbase_1.2.1.tar.gz?raw=true))
+7. Now download and install that baby with devtools (or get a tarball copy [here](https://github.com/aaronbenz/rhbase/tree/master/pkg)
 
-##Getting Data Into HBase with R
-#serialize R objects
-library(data.table)
-library(magrittr)
-library(parallel)
-library(rhbase)
-files <- list.files("~/Documents/data",pattern = ".csv",recursive = T,full.names = T)
+###Test it out
+Hopefully you were able to install rhbase. Provided that you were, try out this code to make sure it works. 
+```{r}
+require(rhbase)
+hb.init()
+```
 
-#rowkey = airport::day::vin#
-#column = variable
-#value = byte array
+###Understanding Our Fake Data
+The fake data that is being supplied is time-series data taken from airport support vehicles (like a baggage truck) from various airports over a small period of time. The data is stored hierarchically as: Airport_Day_VehicleIDNum_Variable. You can retrieve a list of all of the data simply by loading it from the rhbase package:
+```{r}
+require(rhbase)
+data(baggage_trucks)
+str(baggage_trucks[1:3])
+```
 
-#create hbase table
+The three variables are ***gear***, ***speed*** (mph), and **rpm** (revolutions per minute of engine). With these varibles, we are going to calculate the fuel rate of a vehicle. For more information about the data use `?baggage_trucks`
+
+#Getting Data Into HBase with R
+Ok, now its time to talk about actually putting some stuffing in the elephant. 
+
+###HBase Table Design
+Its important that we design our HBase table in a way that suites our query pattern. A NoSQL Columnar frame of mind is always ***Design Your Tables For Your Query Pattern***. Unlike a relational store, each table that is built is designed for normally 1 single type of query pattern (When pairing with Document Stores that can essentially do your backwards indexing like Solr or Elastic Search, this makes your data modelling experience "simplier" in concept). This frame of mind implies that:
+
+  * Should never be doing joins (Spark does add some additional capability for this)
+  * Avoid lookups as much as possible
+  * Do all data transformations on the incoming stream versus the outgoing
+  
+Remember, the goal is to get the data out and delivered as soon as possible, so make sure that the data and the query patterns are designed for the end format, not the raw format.
+
+Ok, now that my little rant is over with (don't worry, I'll mention this again later :)), lets get to the design of this HBase table. We know that our data is **by sensor/variable by vehicle by date** and that it is "de-duplicated" for compression purposes. As it turns out, because this is archieved and compressed data, our storing frame of mind is simply to store that data as a binary blob. But, lets make sure we are retrieving that blob per our use case. Our **use case is to retrieve data by airport by day and by vehicle**. That is, due to memory limitations that might exist, we want to retrieve our data in small enough partitions so that we can perform all of the functions neccessary to calculate fuel usage. So, we should be able to specifiy an airport and a date range, along with whatever variables are neccessary. That brings us to this basic table structure:
+
+  * rowkey = airport::day::vin
+  * column = variable
+  * value = specific data.table
+  
+![](HBaseDesign.png)
+
+
+#####Create HBase Table
+```{r, echo=FALSE}
+hb.delete.table("Test")
+```
+```{r}
 hostLoc = '127.0.0.1'  #Give your server IP
 port = 9090  #Default port for thrift service
 hb.init()
 hb.list.tables()
 TABLE_NAME = "Test"
 COLUMN_FAMILY = "test"
-hb.delete.table(TABLE_NAME)
 hb.new.table(TABLE_NAME, COLUMN_FAMILY)
+```
 
-# input_hbase<- data.table(rowkey = character(0), column = character(0), value = raw())
+###Input Data into HBase
+Now that we have our HBase table created, all that is left is actuall putting the `baggage_trucks` data into HBase. To do this, we will use the convenient `hb.put` function. There are a couple ways to do this, but given that all our information is contained in the name of the table, we can easily extract the rowkey and put it into a vector:
+```{r}
+require(magrittr)
+require(tidyr)
+dt_names <- names(baggage_trucks) %>%
+  data.frame() %>%
+  tidyr::separate(".",c("airport","date","vin","variable"))
+head(dt_names)
+dt_names <- dt_names %>% unite(rowkey,airport,date,vin, sep = "::")
+```
 
-#reads file returns neccessary info for sending to hbase
-prepare <- function(file){
-  #serialize data.table
-  value <- file %>%
-    data.table::fread()
-  if(class(value[[2]]) != "double") value[[2]] <- as.double(value[[2]]) #all doubles for later ;)
-  #get rowkey and column
-  str <- unlist(strsplit(file,split = "/"))
-  rowkey <- paste(str[(length(str)-3):(length(str)-1)],collapse = "::")
-  column <- sub(".csv","",str[length(str)])
-  data.table(rowkey,column,value = list(value)) #data.tables can have a vector of lists!!!
- }
+####How `hb.put` Works
+The design of `hb.put` is ment to be relatively simple and flexible. For a given table and column family, you can either create a list of "columns" and a list of "values" for each "rowkey", or you insert it using a 1-1-1 ratio like this will do. Just fyi, the first option is very useful and designed for inputting multiple columns (think uncompressed time-series) into the same rowkey.
 
-#takes a vector of files, uses prepare to prep them (should include rowky column and value columns), and then
-#puts them into hbase
+```{r}
+hb.put(table_name = TABLE_NAME,column_family = COLUMN_FAMILY, rowkey = dt_names$rowkey, column = dt_names$variable,value = baggage_trucks)
+```
+
+And just like that **BAMMM*, data is in HBase. Now, just to pause for a second, it might be important that you understand how data was input in HBase, as this is actually a modification I made from the original rhbase package. The rowkeys are turned into byte arrays using the `charToRaw` method, essentially turning into a raw binary data type. The data.tables, and values by default, are turned into byte arrays using R's native serializer. If you would like to use your own serializer, input the data as raw (maybe because its already serialized), etc..., simply specify `sz = ` "raw", "character", or custom function in hb.put, OR specify it in the original `hb.init` function.
+
+
+
+###puts them into hbase
 input_hbase <- function(files, table, c.family,...){
   lapply(files,function(x){
-    dt <- prepare(x)
     hb.put(table_name = table, column_family = c.family, rowkey = dt$rowkey, column = dt$column, value = dt$value,...)
     print(paste(x,"completed"))
   })
 }
 
-#send to hbase
+####send to hbase
 time = Sys.time()
 input_hbase(files, table = TABLE_NAME,c.family = COLUMN_FAMILY)
 end = Sys.time()
 end - time
-#sweet, about 12 seconds to read and push
+####sweet, about 12 seconds to read and push
 
 hb.init()
 retrieved <- hb.pull(TABLE_NAME,COLUMN_FAMILY,batchsize = 10)
   
-#testing to push back in
+####testing to push back in
 hb.put(TABLE_NAME, retrieved$column_family, rowkey = retrieved$rowkey, column = paste0(retrieved$column,"new"), value = retrieved$values)
   
-#example retrieving only from 03/07/2014 onward for LAX
-hb.pull(TABLE_NAME, COLUMN_FAMILY, start = "LAX::20140307", end = "LAXa",batchsize = 100)
+####example retrieving only from 03/07/2014 onward for LAX
+hb.pull(TABLE_NAME, COLUMN_FAMILY, start = "LAX::20140306", end = "LAXa",batchsize = 100)
   
-#example retrieving everything between 03/03/2014 and 03/07/2014 (so nothin on the 7th)
+####example retrieving everything between 03/03/2014 and 03/07/2014 (so nothin on the 7th)
 hb.pull(TABLE_NAME, COLUMN_FAMILY, start = "LAX::20140304", end = "LAX::20140307",batchsize = 100)
