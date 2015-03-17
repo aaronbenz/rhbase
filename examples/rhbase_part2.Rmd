@@ -1,6 +1,6 @@
 ---
 title: "Retrieving from HBase with R"
-output: html_document
+output: pdf_document
 ---
 
 This document serves as a tutorial for pulling data from HBase, doing some calculations on it, and storing the results back into HBase
