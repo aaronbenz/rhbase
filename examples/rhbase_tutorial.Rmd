@@ -2,7 +2,7 @@
 title: "Intro to HBase via R"
 author: "Aaron Benz"
 date: "04/28/2015"
-output: html_document
+output: pdf_document
 ---
 #Part I: Intro to HBase
 Welcome to a brief introduction to HBase by way of R. This tutorial is aimed at explaining how you can use R through the rhbase package. However, it will use my little custom addition to rhbase which is geared towards using tidyr principals and data.tables/data.frames. Other differences include:
@@ -62,23 +62,23 @@ So hopefully that helped, and if not, there is plenty of information out there a
 - [Hortonworks](http://hortonworks.com/hadoop/hbase/)
 
 ###Installing HBase and rhbase
-In order to use this stuff, you have to install HBase, thrift (yes, sorry, it uses thrift), and the rhbase. The basic instructions are found [here](https://github.com/RevolutionAnalytics/RHadoop/wiki/user-rhbase-Home), but if you are trying to get up and running as soon as possible, here are a few helpful hints:
+In order to use this stuff, you have to install HBase, Thrift (yes, sorry, it uses Thrift), and the rhbase package. The basic instructions are found [here](https://github.com/RevolutionAnalytics/RHadoop/wiki/user-rhbase-Home), but if you are trying to get up and running as soon as possible, here are a few helpful hints:
 
-1. Install Thrift following this [guide](http://thrift.apache.org/docs/install/)
+1. Install Thrift following this [guide](http://Thrift.apache.org/docs/install/)
 2. Update PKG_CONFIG_PATH: export PKG_CONFIG_PATH=$PKG_CONFIG_PATH:/usr/local/lib/pkgconfig/
-3. Verify pkg-config path is correct: pkg-config --cflags thrift , returns: -I/usr/local/include/thrift
-4. Copy Thrift library sudo cp /usr/local/lib/libthrift-0.8.0.so /usr/lib/
-  - **Under this implementation I would advise using thrift 0.8.0 as the latest version might inclur some bugs**
+3. Verify pkg-config path is correct: pkg-config --cflags Thrift , returns: -I/usr/local/include/Thrift
+4. Copy Thrift library sudo cp /usr/local/lib/libThrift-0.8.0.so /usr/lib/
+  - **Under this implementation I would advise using Thrift 0.8.0 as the latest version might inclur some bugs**
 5. Install HBase following Apache's quick start [guide](http://hbase.apache.org/book.html#quickstart)
 6. Start up HBase and Thrift
 ```
 [hbase-root]/bin/start-hbase.sh
-[hbase-root]/bin/hbase thrift start
+[hbase-root]/bin/hbase Thrift start
 ```
 7. Now download and install the package with devtools (or get a tarball copy [here](https://github.com/aaronbenz/rhbase/tree/master/pkg)
 
 ###Test it out
-Provided HBase, thrift, and rhbase are now installed correctly and are running, the code below should run successfully.
+Provided HBase, Thrift, and rhbase are now installed correctly and are running, the code below should run successfully.
 ```{r}
 library(rhbase)
 library(data.table)
@@ -124,7 +124,7 @@ hb.delete.table("Test")
 ```
 ```{r}
 hostLoc = '127.0.0.1'  #Give your server IP
-port = 9090  #Default port for thrift service
+port = 9090  #Default port for Thrift service
 hb.init()
 hb.list.tables()
 TABLE_NAME = "Test"
