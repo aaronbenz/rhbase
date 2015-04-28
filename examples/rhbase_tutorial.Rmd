@@ -1,11 +1,11 @@
 ---
-title: "Intro to HBase via R aka rhbase part I"
+title: "Intro to HBase via R"
 author: "Aaron Benz"
-date: "02/01/2015"
-output: html_document
+date: "04/28/2015"
+output: pdf_document
 ---
-###Part I: Intro to HBase
-Hello, and welcome to a brief introduction to HBase by way of R. This tutorial is aimed at explaining how you can use R through the rhbase package. However, it will use my little custom addition to rhbase which is geared towards using tidyr principals and data.tables/data.frames. Other differences include:
+#Part I: Intro to HBase
+Welcome to a brief introduction to HBase by way of R. This tutorial is aimed at explaining how you can use R through the rhbase package. However, it will use my little custom addition to rhbase which is geared towards using tidyr principals and data.tables/data.frames. Other differences include:
 
 1. Standardized row-key serialize (raw data type)
 2. sz and usz functions only apply to the actual data instead of row-key
@@ -19,28 +19,28 @@ So what will you get out of this? Good question. It is broken down into three pa
 3. Retrieving Data from HBase, doing calculations, and inserting calculations
 
 ###So what is HBase Anyway?
-Hopefully you have some knowledge of what HBase is, because after all, you are reading this. By no means will I attempt to explain all of HBase, but here is a brief attempt to summarize the mammoth:
+Hopefully you have some bare knowledge of what HBase is, because after all, you are reading this. By no means will I attempt to explain all of HBase, but here is a brief attempt to summarize the mammoth:
 
 **Wikipedias definition**: HBase is an open source, non-relational, distributed database modeled after Google's BigTable and written in Java. It is developed as part of Apache Software Foundation's Apache Hadoop project and runs on top of HDFS (Hadoop Distributed File system), providing BigTable-like capabilities for Hadoop.
 
-**From From http://hbase.apache.org/** “Use Apache HBase when you need **random, realtime read/write access** to your Big Data. This project's goal is the hosting of very large tables -- **billions of rows X millions of columns** -- atop clusters of commodity hardware. Apache HBase is an **open-source, distributed, versioned, non-relational database** modeled after Google's Bigtable... Just as Bigtable leverages the distributed data storage provided by the Google File System, Apache HBase provides Bigtable-like capabilities **on top of Hadoop and HDFS**.”
+**From http://hbase.apache.org/** “Use Apache HBase when you need **random, realtime read/write access** to your Big Data. This project's goal is the hosting of very large tables -- **billions of rows X millions of columns** -- atop clusters of commodity hardware. Apache HBase is an **open-source, distributed, versioned, non-relational database** modeled after Google's Bigtable... Just as Bigtable leverages the distributed data storage provided by the Google File System, Apache HBase provides Bigtable-like capabilities **on top of Hadoop and HDFS**.”
 
 Clearly with those definitions you should know what HBase is now right? If you're like me, a little more explanation is helpful. To start wrapping your head around NoSQL and HBase, here is a 5-step progression that I have found helpful:
 
-1. A Key-Value Store
+1. A **Key-Value Store**
   - At its core, that's all HBase really is. Its a map, a dictionary (python), a hash (ruby), etc... 
-2. Distributed
+2. **Distributed**
   - HBase sits atop a Hadoop Cluster. Basically what that means from HBase's perspective is that the data in HBase is replicated out to, by default, 3 nodes in a Hadoop Cluster. 
   - Based on the assumption that servers go down and bad things happen
   - A full implementation relies on HDFS, Zookeeper, and your HBase region master(s)
-3. Consistent
+3. **Consistent**
   - HBase is (at least as of right now) an immediate consistent database. That means that HBase guarantees your data to be the exact same on any of the nodes that it is replicated to. 
   - See CAP Theorem for more information on Consistent, Available, and Partition tolerant databases (Cassandra, a similar NoSQL Columnar Database emphasizes Availability over Consistency)
-4. Sorted
+4. **Sorted**
   - The Keys in this key-value store are stored alphabetically
   - Designed for faster reads than writes
   - Allows the concepts of "scanning" to exist
-5. Multi-Dimensional
+5. **Multi-Dimensional Key-Value Store**
   - Remember how it is a key-value store. Well, really, its more like a key-column-value store, or Map of Maps
   - This is what is referred to as "columnar" or "wide rows"
   - For any given key, allows you to store any amount of information
@@ -49,11 +49,11 @@ Clearly with those definitions you should know what HBase is now right? If you'r
 
 ###HBase Frame of Mind
   - First there is a HBase **table**, which is exactly what you would think it is... a table
-  - Within a table are **column families**, which is basically just a subgroup of your table. Best practice is to limit the number and size of these. So, if you are new to HBase, just pretend you only have 1 as in most cases that is all that is necessary. 
+  - Within a table are **column families**, which is basically just a subgroup of your table. Best practice is to limit the number and size of these. So, if you are new to HBase, just pretend you only have 1 as in many cases that is all that is necessary. 
   - All data is then accessed via a **rowkey**, which is essentially your indexing mechanism (enter row-key or range of row-keys, and BLAM, data). This is also your key in "key-column-value" as depicted earlier
-  - Within a given row, there can be potentially millions of columns. This is the concept of **wide rows**. Although it can certainly be used for many things, time-series data is a good use case as it allows you to store a time values as column values, and then the variable value in a cell (the variable name would be in the row key). This concept is often hard to grasp the first time, so I have provided some visuals to help explain it. Many people's breakthrough on this concept is often when they realize that values are/can be stored as columns. 
-  - Schema less. You do not need to add columns in advance ever, you can simply do it on the fly. However, is advised that you keep record or develop a scheme of how you are storing data as the actual retrieval will be made very difficult if you have no idea whats in there.
-  - Data modeling: **Based off query patterns and stored directly**. Cross-table joins are a BAD thing (Spark can help with this). Essentially you are sacrificing complex querying for huge speed gains.
+  - Within a given row, there can be potentially millions of columns. This is the concept of **wide rows**. Although it can certainly be used for many things, time-series data is a good use case as it allows you to store time values as column names, and then the variable value correlating to a particular timestamp is in a cell (the variable name would be in the row key). This concept is often hard to grasp the first time, so I have provided some visuals to help explain it. Many people's breakthrough on this concept is often when they realize that values are/can be stored as columns. 
+  - **Schemaless*. You do not need to add columns in advance ever, you can simply do it on the fly. However, is advised that you keep record or develop a scheme of how you are storing data as the actual retrieval will be made very difficult if you have no idea whats in there.
+  - Data modeling: **Based off query patterns and stored directly**. Cross-table jogins are a BAD thing (Spark can help with this, but that does not mean you should design to do any kind of joins). Essentially you are sacrificing complex querying for huge speed gains.
 
 So hopefully that helped, and if not, there is plenty of information out there about HBase and what it does. Here are a few links:
 
@@ -67,7 +67,8 @@ In order to use this stuff, you have to install HBase, thrift (yes, sorry, it us
 1. Install Thrift following this [guide](http://thrift.apache.org/docs/install/)
 2. Update PKG_CONFIG_PATH: export PKG_CONFIG_PATH=$PKG_CONFIG_PATH:/usr/local/lib/pkgconfig/
 3. Verify pkg-config path is correct: pkg-config --cflags thrift , returns: -I/usr/local/include/thrift
-4. Copy Thrift library sudo cp /usr/local/lib/libthrift-0.8.0.so /usr/lib/ 
+4. Copy Thrift library sudo cp /usr/local/lib/libthrift-0.8.0.so /usr/lib/
+  - **Under this implementation I would advise using thrift 0.8.0 as the latest version might inclur some bugs**
 5. Install HBase following Apache's quick start [guide](http://hbase.apache.org/book.html#quickstart)
 6. Start up HBase and Thrift
 ```
@@ -77,15 +78,15 @@ In order to use this stuff, you have to install HBase, thrift (yes, sorry, it us
 7. Now download and install the package with devtools (or get a tarball copy [here](https://github.com/aaronbenz/rhbase/tree/master/pkg)
 
 ###Test it out
-Provided HBase and rhbase are now installed correctly and is running, the code below should run successfully.
+Provided HBase, thrift, and rhbase are now installed correctly and are running, the code below should run successfully.
 ```{r}
-require(rhbase)
+library(rhbase)
 library(data.table)
 hb.init()
 ```
 
 ###Understanding Our Fake Data
-The fake data that is being supplied is time-series data taken from airport support vehicles (like a baggage truck) from various airports over a small period of time. The data is stored hierarchically as: Airport_Day_VehicleIDNum_Variable. You can retrieve a list of all of the data simply by loading it from the rhbase package:
+The fake data that is being supplied in this tutorial is time-series data taken from airport support vehicles (like a baggage truck) from various airports over a small period of time. The data is stored hierarchically as: Airport_Day_VehicleID_Variable. You can retrieve a list of all of the data simply by loading it from the rhbase package:
 ```{r}
 data(baggage_trucks)
 str(baggage_trucks[1:3])
@@ -93,21 +94,21 @@ str(baggage_trucks[1:3])
 
 The three variables are ***gear***, ***speed*** (mph), and **rpm** (revolutions per minute of engine). With these variables, the goal is to calculate the fuel rate of a vehicle. For more information about the data use `?baggage_trucks`
 
-Note: Credit to Spencer Herath for creating the fake data set of trucks whizzing around an airport.
+Note: Credit to Spencer Herath for creating the fake data set of imaginary trucks whizzing around an invisible airport.
 
-#Getting Data Into HBase with R
+#Part II: Getting Data Into HBase with R
 Ok, now it's time to talk about actually putting some stuffing in the elephant. 
 
 ###HBase Table Design
-It's important that the design of the HBase table suites the desired query pattern(s). A NoSQL Columnar frame of mind is always ***Design Your Tables For Your Query Pattern***. Unlike a relational store, each table that is built is traditionally designed for one single type of query pattern (document stores like Solr or Elastic Search can offer a backwards indexing solution. Overall, this can make a data modelling experience "simpler" in concept). This frame of mind implies that:
+It's important that the design of the HBase table suites the desired query pattern(s). A NoSQL Columnar frame of mind is always ***Design Your Tables For Your Query Pattern***. Unlike a relational store, each table that is built is traditionally designed for one single type of query pattern (document stores like Solr or Elastic Search can offer a backwards indexing solution. Overall, this can make a data modeling experience "simpler" in concept). To recap slightly, this frame of mind implies that:
 
-  * Joins are BAD (Spark does add some additional capability for this, and will probably only continue to grow in the future)
+  * Joins are BAD
   * Avoid lookups as much as possible
   * Do all data transformations on the incoming stream versus the outgoing
   
 Remember, the goal is to get the data out and delivered as soon as possible, so take special precaution to insure that the data and the query patterns are designed for the end format, not the raw format.
 
-Currently the data in its raw format is **by variable by vehicle by date** and  it is "de-duplicated" for compression purposes. Additionally, because this is archived data, additionally compresstion to a binary blob(byte array) is achievable, drastically reducing the size of the data set while immensely increasing the speed at which it is retrieved (because its just in one blob as opposed to many cells). However, the approache should be cautious of the memory limitations that might exist; the size and number of blobs has to be manageable. That is, data needs to be retrieved in manageable partitions that contain all of the neccessary variables to perform a fuel usage calculation. With those concepts in mind, the query pattern should be able to take on specific airports and date ranges, along with whatever variables that are desired. Thus:
+Currently the data in its raw format is **by variable by vehicle by date.** Additionally, because this is archived data, additionally compresstion to a binary blob(byte array) is achievable, drastically reducing the size of the data set while immensely increasing the speed at which it is retrieved (because its just in one blob as opposed to many cells). However, the approach should be cautious of the memory limitations that might exist; the size and number of blobs has to be manageable. That is, data needs to be retrieved in manageable partitions that contain all of the neccessary variables to perform a fuel usage calculation. With those concepts in mind, the query pattern should be able to take on specific airports and date ranges, along with whatever variables that are desired. Thus:
 
   * row-key = airport::day::vin
   * column = variable
@@ -145,14 +146,13 @@ head(dt_names)
 ```
 
 ####How `hb.put` Works
-The design of `hb.put` is meant to be relatively simple and flexible. For a given table and column family, `hb.put` allows the creation of a list of "columns" and a list of "values" for each "row-key", or it allows the insertion of data using a 1-1-1 ratio like this example will do. FYI, the first option is very useful and designed for inputting multiple columns into the same row-key (an uncompressed time-series use case).
-
+The design of `hb.put` is meant to be relatively simple and flexible. For a given table and column family, `hb.put` allows the creation of a list of "columns" and a list of "values" for each "row-key." This option is very useful and designed for inputting multiple columns into the same row-key (an uncompressed time-series use case). Additionally, `hb.put` allows the insertion of data using a 1-1-1 ratio like this example will do.
 ```{r}
 hb.put(table_name = TABLE_NAME,column_family = COLUMN_FAMILY, rowkey = dt_names$rowkey, column = dt_names$variable,value = baggage_trucks)
 ```
 
 
-As simple as that, data is in HBase. Before proceeding further, it might be important that to understand how data was put into HBase, as this is actually a modification from the original rhbase package. The row-keys are turned into byte arrays using the `charToRaw` method, essentially turning the character row-key into a raw binary data type. The data.tables are turned into byte arrays using R's native serializer. If you would like to use your own serializer for the actual data, input the data as raw (maybe because its already serialized), etc..., simply specify `sz = ` "raw", "character", or custom function in hb.put, OR specify it in the original `hb.init` function. Note: the row-key serializer is not editable at the moment. The change to this branch was seperating the serialization method for the row-keys from the values.
+And just like that, data is in HBase. Before proceeding further, it might be important that to understand how data was put into HBase, as this is actually a modification from the original rhbase package. The row-keys are turned into byte arrays using the `charToRaw` method, essentially turning the character row-key into a raw binary data type. The data.tables are turned into byte arrays using R's native serializer. If you would like to use your own serializer for the actual data, input the data as raw (maybe because its already serialized), etc..., simply specify `sz = ` "raw", "character", or custom function in hb.put, OR specify it in the original `hb.init` function. Note: the row-key serializer is not editable at the moment. The change to this branch was seperating the serialization method for the row-keys from the values.
 
   
 ####Examples Retrieving Data
@@ -170,7 +170,7 @@ hb.pull(TABLE_NAME, COLUMN_FAMILY, start = "LAX::20140307", end = "LAX::20140308
 ```
 
 
-##Part III: Retrieve and Store
+#Part III: Retrieve and Store
 Ok, so now that data is in HBase, lets:
 
 1. **Retrieve Data with rhbase**
@@ -185,7 +185,7 @@ From the HBase input tutorial, we stored data.tables via byte arrays in HBase (f
 
 Going back to the use case at hand, our goal is to measure the total fuel consumption of these trucks present in the data. To do so, we need to call gear, rpm, and speed (the three variables we put in HBase) and apply a custom made fuel calculator in R. However, as mentioned previously, we need to be careful about how we bring data in, as too much data at one time could easily lead to memory problems.
 
-Based on how we modeled our data (sorry for the overkill, but it SHOULD ALWAYS be based on our retrieval patterns in a NoSQL Columnar store), we are going to **retrieve ALL variables for ALL VINs by EACH day for EACH airport**. We can do this in HBase with the `scan` function. Recalling the description of HBase, all of the keys or row-keys are sorted alphabetically. This means that all of the data for 1 airport is stored next to each other. Additionally, because of our row-key, all of the data is sorted by Airport by Date. A scan operation will allow us to get back all of the data for 1 airport for 1 day in essentially 1 iop. That is, with one "scan" we can get all of the data because its located next to each other. So how can we do this in R:
+Based on how we modeled our data, we are going to **retrieve ALL variables for ALL VINs by EACH day for EACH airport**. We can do this in HBase with the `scan` function. Recalling the description of HBase, all of the keys or row-keys are sorted alphabetically. This means that all of the data for 1 airport is stored next to each other. Additionally, because of our row-key, all of the data is sorted by Airport by Date. A scan operation will allow us to get back all of the data for 1 airport for 1 day in essentially 1 iop. That is, with one "scan" we can get all of the data because its located next to each other. So how can we do this in R:
 
 We begin with a list of our airports:
 ```{r}
@@ -208,8 +208,6 @@ rk_generator <- function(start, end, ...){
 
 march <- rk_generator(start_dates, end_dates, sep = "::")
 ```
-
-
 
 The functional `march` allows us to have all of the time stamps we want for each airport. For example:
 ```{r}
@@ -344,7 +342,7 @@ data2$rbinded <- lapply(data2$rbinded,function(i){
                         })
 data2$rbinded[[1]]
 ```
-Sweeeeeet!!! So now we have done our main calculation. But we want to know the total amount of gallons each truck burned per day. We are going to use `calc_area`, which is a timeseriesr function that calculates the area under the curve. It is using a Riemann left sum approach, but others will probably be added soon enough (if your data is compressed and de-duplicated then its the right approach)
+So now we have done our main calculation. But we want to know the total amount of gallons each truck burned per day. We are going to use `calc_area`, which is a timeseriesr function that calculates the area under the curve. It is using a Riemann left sum approach, but others will probably be added soon enough (if your data is compressed and de-duplicated then its the right approach)
 ```{r}
 #calculates area under the curve as a total
 data2$gallons <- data2$rbinded %>%
@@ -357,7 +355,7 @@ data2$mph <- data2$rbinded %>%
                         sapply(function(x) mean(x$speed))
 data2[,gal_per_hr := gallons/hours]
 ```
-**Bada Bing Bada Boom aka BBBB**. We have now calculated the total amount of gallons that each truck burned, the total hours it ran, miles per hour, and its average gallons per hour. Now, lets put all of this back into HBase to move onto the day/airport. 
+**We have now calculated the total amount of gallons that each truck burned, the total hours it ran, miles per hour, and its average gallons per hour.* Now, lets put all of this back into HBase to move onto the day/airport. 
 
 ##Store Our Results using rhbase
 We are going to store all of the information that we collected back into the same HBase table for later use. That includes:
@@ -388,8 +386,8 @@ And just to test it out, lets see what happens when we pull back one of the new 
 hb.pull("Test","test",c("gal_per_hr","rbinded"))
 ```
 
-**BBBB!!!** Pretty cool right? 
+**Pretty cool right?**
 
-Whats great about this is that you can easily parallel this operation across multiple cores/nodes/clusters because we broke it down in intervals (airport and date). Check out the parallel package or even the rmr2 package for more details of how to do that. 
+Whats great about this is that you can easily parallel this operation across multiple cores/nodes/clusters because we broke it down in intervals (airport and date). That is, our data model and query pattern was designed for easily doing a fork and join operation. Check out the parallel package or even the rmr2 package for more details of how to do that. 
 
 If you have any suggestions, comments, or questions please feel free to contact me. Also if you would like to further contribute to the rhbase fork or timeseriesr package, I welcome all aboard.
