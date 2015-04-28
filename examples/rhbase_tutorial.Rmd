@@ -2,7 +2,7 @@
 title: "Intro to HBase via R"
 author: "Aaron Benz"
 date: "04/28/2015"
-output: pdf_document
+output: html_document
 ---
 #Part I: Intro to HBase
 Welcome to a brief introduction to HBase by way of R. This tutorial is aimed at explaining how you can use R through the rhbase package. However, it will use my little custom addition to rhbase which is geared towards using tidyr principals and data.tables/data.frames. Other differences include:
@@ -23,7 +23,7 @@ Hopefully you have some bare knowledge of what HBase is, because after all, you 
 
 **Wikipedias definition**: HBase is an open source, non-relational, distributed database modeled after Google's BigTable and written in Java. It is developed as part of Apache Software Foundation's Apache Hadoop project and runs on top of HDFS (Hadoop Distributed File system), providing BigTable-like capabilities for Hadoop.
 
-**From http://hbase.apache.org/** “Use Apache HBase when you need **random, realtime read/write access** to your Big Data. This project's goal is the hosting of very large tables -- **billions of rows X millions of columns** -- atop clusters of commodity hardware. Apache HBase is an **open-source, distributed, versioned, non-relational database** modeled after Google's Bigtable... Just as Bigtable leverages the distributed data storage provided by the Google File System, Apache HBase provides Bigtable-like capabilities **on top of Hadoop and HDFS**.”
+**From http://hbase.apache.org/** “Use Apache HBase when you need **random, realtime read/write access** to your Big Data. This project's goal is the hosting of very large tables -- **billions of rows X millions of columns** -- atop clusters of commodity hardware. Apache HBase is an **open-source, distributed, versioned, non-relational database** modeled after Google's BigTable... Just as BigTable leverages the distributed data storage provided by the Google File System, Apache HBase provides BigTable-like capabilities **on top of Hadoop and HDFS**.”
 
 Clearly with those definitions you should know what HBase is now right? If you're like me, a little more explanation is helpful. To start wrapping your head around NoSQL and HBase, here is a 5-step progression that I have found helpful:
 
@@ -53,7 +53,7 @@ Clearly with those definitions you should know what HBase is now right? If you'r
   - All data is then accessed via a **rowkey**, which is essentially your indexing mechanism (enter row-key or range of row-keys, and BLAM, data). This is also your key in "key-column-value" as depicted earlier
   - Within a given row, there can be potentially millions of columns. This is the concept of **wide rows**. Although it can certainly be used for many things, time-series data is a good use case as it allows you to store time values as column names, and then the variable value correlating to a particular timestamp is in a cell (the variable name would be in the row key). This concept is often hard to grasp the first time, so I have provided some visuals to help explain it. Many people's breakthrough on this concept is often when they realize that values are/can be stored as columns. 
   - **Schemaless*. You do not need to add columns in advance ever, you can simply do it on the fly. However, is advised that you keep record or develop a scheme of how you are storing data as the actual retrieval will be made very difficult if you have no idea whats in there.
-  - Data modeling: **Based off query patterns and stored directly**. Cross-table jogins are a BAD thing (Spark can help with this, but that does not mean you should design to do any kind of joins). Essentially you are sacrificing complex querying for huge speed gains.
+  - Data modeling: **Based off query patterns and stored directly**. Cross-table joins are a BAD thing (Spark can help with this, but that does not mean you should design to do any kind of joins). Essentially you are sacrificing complex querying for huge speed gains.
 
 So hopefully that helped, and if not, there is plenty of information out there about HBase and what it does. Here are a few links:
 
@@ -108,7 +108,7 @@ It's important that the design of the HBase table suites the desired query patte
   
 Remember, the goal is to get the data out and delivered as soon as possible, so take special precaution to insure that the data and the query patterns are designed for the end format, not the raw format.
 
-Currently the data in its raw format is **by variable by vehicle by date.** Additionally, because this is archived data, additionally compresstion to a binary blob(byte array) is achievable, drastically reducing the size of the data set while immensely increasing the speed at which it is retrieved (because its just in one blob as opposed to many cells). However, the approach should be cautious of the memory limitations that might exist; the size and number of blobs has to be manageable. That is, data needs to be retrieved in manageable partitions that contain all of the neccessary variables to perform a fuel usage calculation. With those concepts in mind, the query pattern should be able to take on specific airports and date ranges, along with whatever variables that are desired. Thus:
+Currently the data in its raw format is **by variable by vehicle by date.** Additionally, because this is archived data, additionally compression to a binary blob(byte array) is achievable, drastically reducing the size of the data set while immensely increasing the speed at which it is retrieved (because its just in one blob as opposed to many cells). However, the approach should be cautious of the memory limitations that might exist; the size and number of blobs has to be manageable. That is, data needs to be retrieved in manageable partitions that contain all of the necessary variables to perform a fuel usage calculation. With those concepts in mind, the query pattern should be able to take on specific airports and date ranges, along with whatever variables that are desired. Thus:
 
   * row-key = airport::day::vin
   * column = variable
@@ -152,7 +152,7 @@ hb.put(table_name = TABLE_NAME,column_family = COLUMN_FAMILY, rowkey = dt_names$
 ```
 
 
-And just like that, data is in HBase. Before proceeding further, it might be important that to understand how data was put into HBase, as this is actually a modification from the original rhbase package. The row-keys are turned into byte arrays using the `charToRaw` method, essentially turning the character row-key into a raw binary data type. The data.tables are turned into byte arrays using R's native serializer. If you would like to use your own serializer for the actual data, input the data as raw (maybe because its already serialized), etc..., simply specify `sz = ` "raw", "character", or custom function in hb.put, OR specify it in the original `hb.init` function. Note: the row-key serializer is not editable at the moment. The change to this branch was seperating the serialization method for the row-keys from the values.
+And just like that, data is in HBase. Before proceeding further, it might be important that to understand how data was put into HBase, as this is actually a modification from the original rhbase package. The row-keys are turned into byte arrays using the `charToRaw` method, essentially turning the character row-key into a raw binary data type. The data.tables are turned into byte arrays using R's native serializer. If you would like to use your own serializer for the actual data, input the data as raw (maybe because its already serialized), etc..., simply specify `sz = ` "raw", "character", or custom function in hb.put, OR specify it in the original `hb.init` function. Note: the row-key serializer is not editable at the moment. The change to this branch was separating the serialization method for the row-keys from the values.
 
   
 ####Examples Retrieving Data
@@ -235,7 +235,7 @@ data <- hb.pull("Test","test",start = a_day[[1]], end = a_day[[2]], columns = c(
 data[1:6]
 ```
 
-WHOAAAA, dataaaaa!!!!!
+And just like that, boom, data!!!!!
 
 ##Manipulate Data with Tidyr + data.table + timeseriesr
 
@@ -274,6 +274,7 @@ data2$rbinded <- data2$rbinded %>% lapply(timeseriesr::dtreplace)  %>% lapply(se
 data2$rbinded[[1]]
 ```
 4. Now lets see what this baby looks like:
+
 ```{r, echo=FALSE, warning=FALSE}
 library(ggplot2)
 plot_time_series <- function(data_table, time_variable = "time", y = "value", color_by = NULL, facet_by = NULL,facet_text_size = 10,title = paste(data_table$well_id[1])){
@@ -342,7 +343,8 @@ data2$rbinded <- lapply(data2$rbinded,function(i){
                         })
 data2$rbinded[[1]]
 ```
-So now we have done our main calculation. But we want to know the total amount of gallons each truck burned per day. We are going to use `calc_area`, which is a timeseriesr function that calculates the area under the curve. It is using a Riemann left sum approach, but others will probably be added soon enough (if your data is compressed and de-duplicated then its the right approach)
+So now we have done our main calculation. But we want to know the total amount of gallons each truck burned per day. We are going to use `calc_area`, which is a timeseriesr function that calculates the area under the curve. It is using a Riemann left sum approach, but others will probably be added soon enough.
+
 ```{r}
 #calculates area under the curve as a total
 data2$gallons <- data2$rbinded %>%
