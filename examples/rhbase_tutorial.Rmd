@@ -7,14 +7,14 @@ output: pdf_document
 #Part I: Intro to HBase
 Welcome to a brief introduction to HBase by way of R. This tutorial is aimed at explaining how you can use R through the rhbase package. However, it will use my little custom addition to rhbase which is geared towards using tidyr principals and data.tables/data.frames. Other differences include:
 
-1. Standardized row-key serialize (raw data type)
+1. Standardized row-key serializer (raw data type)
 2. sz and usz functions only apply to the actual data instead of row-key
 3. hb.put - wrapper around hb.insert for easier inputting
 4. hb.pull - wrapper around hb.scan for easier retrieval
 
 So what will you get out of this? Good question. It is broken down into three parts:
 
-1. Getting HBase, Thrift, and rhbase installed and working + brief intro + data intro
+1. Getting HBase, Thrift, and rhbase installed with a brief intro into HBase
 2. Inserting Data into HBase + HBase Basic Design/Modelling 
 3. Retrieving Data from HBase, doing calculations, and inserting calculations
 
@@ -34,26 +34,26 @@ Clearly with those definitions you should know what HBase is now right? If you'r
   - Based on the assumption that servers go down and bad things happen
   - A full implementation relies on HDFS, Zookeeper, and your HBase region master(s)
 3. **Consistent**
-  - HBase is (at least as of right now) an immediate consistent database. That means that HBase guarantees your data to be the exact same on any of the nodes that it is replicated to. 
-  - See CAP Theorem for more information on Consistent, Available, and Partition tolerant databases (Cassandra, a similar NoSQL Columnar Database emphasizes Availability over Consistency)
+  - HBase is an immediately consistent database. That means that HBase guarantees your data to be the exact same on any of the nodes that it is replicated to. 
+  - See CAP Theorem for more information on Consistent, Available, and Partition tolerant databases (Cassandra is a similar NoSQL Columnar Database emphasizing Availability over Consistency)
 4. **Sorted**
   - The Keys in this key-value store are stored alphabetically
   - Designed for faster reads than writes
   - Allows the concepts of "scanning" to exist
 5. **Multi-Dimensional Key-Value Store**
-  - Remember how it is a key-value store. Well, really, its more like a key-column-value store, or Map of Maps
+  - Remember how it is a key-value store. Well, really, its more like a key-column-value store, or a Map of Maps
   - This is what is referred to as "columnar" or "wide rows"
-  - For any given key, allows you to store any amount of information
+  - For any given key, it allows you to store any amount of information
   - Schema-less - your key-column-value combination can be defined at any time and does not naturally conform to any schema
 
 
 ###HBase Frame of Mind
   - First there is a HBase **table**, which is exactly what you would think it is... a table
-  - Within a table are **column families**, which is basically just a subgroup of your table. Best practice is to limit the number and size of these. So, if you are new to HBase, just pretend you only have 1 as in many cases that is all that is necessary. 
+  - Tables are organized by **column families**, which is basically just another container for your data. Best practice is to limit the number and size of these. So, if you are new to HBase, just pretend you only have 1 as in many cases that is all that is necessary. 
   - All data is then accessed via a **rowkey**, which is essentially your indexing mechanism (enter row-key or range of row-keys, and BLAM, data). This is also your key in "key-column-value" as depicted earlier
   - Within a given row, there can be potentially millions of columns. This is the concept of **wide rows**. Although it can certainly be used for many things, time-series data is a good use case as it allows you to store time values as column names, and then the variable value correlating to a particular timestamp is in a cell (the variable name would be in the row key). This concept is often hard to grasp the first time, so I have provided some visuals to help explain it. Many people's breakthrough on this concept is often when they realize that values are/can be stored as columns. 
   - **Schemaless*. You do not need to add columns in advance ever, you can simply do it on the fly. However, is advised that you keep record or develop a scheme of how you are storing data as the actual retrieval will be made very difficult if you have no idea whats in there.
-  - Data modeling: **Based off query patterns and stored directly**. Cross-table joins are a BAD thing (Spark can help with this, but that does not mean you should design to do any kind of joins). Essentially you are sacrificing complex querying for huge speed gains.
+  - Data modeling: **Based off query patterns and stored directly**. Cross-table joins are a BAD thing (Spark can help with this, but that does not mean your design should implementjoins). Essentially you are sacrificing complex querying for huge speed gains.
 
 So hopefully that helped, and if not, there is plenty of information out there about HBase and what it does. Here are a few links:
 
