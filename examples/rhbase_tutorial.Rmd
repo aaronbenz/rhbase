@@ -2,7 +2,7 @@
 title: "Intro to HBase via R"
 author: "Aaron Benz"
 date: "04/28/2015"
-output: html_document
+output: word_document
 ---
 #Part I: Intro to HBase
 Welcome to a brief introduction to HBase by way of R. This tutorial is aimed at explaining how you can use R through the rhbase package. However, it will use my little custom addition to `rhbase` which is geared towards using `tidyr` principals and `data.tables`/`data.frames`. Other differences include:

@@ -72,14 +72,14 @@ img {
 <h1>Part I: Intro to HBase</h1>
 <p>Welcome to a brief introduction to HBase by way of R. This tutorial is aimed at explaining how you can use R through the rhbase package. However, it will use my little custom addition to <code>rhbase</code> which is geared towards using <code>tidyr</code> principals and <code>data.tables</code>/<code>data.frames</code>. Other differences include:</p>
 <ol style="list-style-type: decimal">
-<li>Standardized row-key serialize (raw data type)</li>
+<li>Standardized row-key serializer (raw data type)</li>
 <li>sz and usz functions only apply to the actual data instead of row-key</li>
 <li>hb.put - wrapper around hb.insert for easier inputting</li>
 <li>hb.pull - wrapper around hb.scan for easier retrieval</li>
 </ol>
 <p>So what will you get out of this? Good question. It is broken down into three parts:</p>
 <ol style="list-style-type: decimal">
-<li>Getting HBase, Thrift, and rhbase installed and working + brief intro + data intro</li>
+<li>Getting HBase, Thrift, and rhbase installed with a brief intro into HBase</li>
 <li>Inserting Data into HBase + HBase Basic Design/Modelling</li>
 <li>Retrieving Data from HBase, doing calculations, and inserting calculations</li>
 </ol>
@@ -107,8 +107,8 @@ img {
 <li><strong>Consistent</strong></li>
 </ol>
 <ul>
-<li>HBase is (at least as of right now) an immediate consistent database. That means that HBase guarantees your data to be the exact same on any of the nodes that it is replicated to.</li>
-<li>See CAP Theorem for more information on Consistent, Available, and Partition tolerant databases (Cassandra, a similar NoSQL Columnar Database emphasizes Availability over Consistency)</li>
+<li>HBase is an immediately consistent database. That means that HBase guarantees your data to be the exact same on any of the nodes that it is replicated to.</li>
+<li>See CAP Theorem for more information on Consistent, Available, and Partition tolerant databases (Cassandra is a similar NoSQL Columnar Database emphasizing Availability over Consistency)</li>
 </ul>
 <ol start="4" style="list-style-type: decimal">
 <li><strong>Sorted</strong></li>
@@ -119,24 +119,30 @@ img {
 <li>Allows the concepts of “scanning” to exist</li>
 </ul>
 <ol start="5" style="list-style-type: decimal">
-<li><strong>Multi-Dimensional Key-Value Store</strong></li>
+<li><strong>Multi-Dimensional Key-Value Store</strong> &lt;&lt;&lt;&lt;&lt;&lt;&lt; HEAD</li>
 </ol>
 <ul>
-<li>Remember that it is a key-value store? Well, really, its more like a key-column-value store, or a Map of Maps</li>
+<li><h1>Remember that it is a key-value store? Well, really, its more like a key-column-value store, or a Map of Maps</h1></li>
+<li>Remember how it is a key-value store. Well, really, its more like a key-column-value store, or a Map of Maps &gt;&gt;&gt;&gt;&gt;&gt;&gt; 91bf20b9969f42dc30bf1b630c84e825e989b0aa</li>
 <li>This is what is referred to as “columnar” or “wide rows”</li>
-<li>For any given key, allows you to store any amount of information</li>
+<li>For any given key, it allows you to store any amount of information</li>
 <li>Schema-less - your key-column-value combination can be defined at any time and does not naturally conform to any schema</li>
 </ul>
 </div>
 <div id="hbase-frame-of-mind" class="section level3">
 <h3>HBase Frame of Mind</h3>
 <ul>
-<li>First there is a HBase <strong>table</strong>, which is exactly what you would think it is… a table</li>
+<li>First there is a HBase <strong>table</strong>, which is exactly what you would think it is… a table &lt;&lt;&lt;&lt;&lt;&lt;&lt; HEAD</li>
 <li>Within a table are <strong>column families</strong>, which are basically just a subgroup of your table. Best practice is to limit the number and size of these. So, if you are new to HBase, just specify one column family, which is all that is necessary in many cases.</li>
 <li>All data is then accessed via a <strong>rowkey</strong>, which is essentially your indexing mechanism (enter row-key or range of row-keys, and BLAM, data). This is also your key in “key-column-value” as depicted earlier</li>
 <li>Within a given row, there can be potentially millions of columns. This is the concept of <strong>wide rows</strong>. Although it can certainly be used for many things, time-series data is a good use case as it allows you to store time values as column names, and then the variable value correlating to a particular timestamp is in a cell (the variable name would be in the row key). This concept is often hard to grasp the first time, so I have provided some visuals to help explain it. Many people’s breakthrough on this concept is often when they realize that values are/can be stored as columns.</li>
 <li><strong>Schemaless</strong>. You do not need to add columns in advance, you can simply do it on the fly. However, you should keep record or develop a scheme of how you are storing data as the actual retrieval will be made very difficult if you have no idea whats in there.</li>
-<li>Data modeling: <strong>Based off query patterns and stored directly</strong>. Cross-table joins are a BAD thing (Spark can help with this, but that does not mean you should design your data model to do any kind of joins). Essentially you are sacrificing complex querying for huge speed gains.</li>
+<li><h1>Data modeling: <strong>Based off query patterns and stored directly</strong>. Cross-table joins are a BAD thing (Spark can help with this, but that does not mean you should design your data model to do any kind of joins). Essentially you are sacrificing complex querying for huge speed gains.</h1></li>
+<li>Tables are organized by <strong>column families</strong>, which is basically just another container for your data. Best practice is to limit the number and size of these. So, if you are new to HBase, just pretend you only have 1 as in many cases that is all that is necessary.</li>
+<li>All data is then accessed via a <strong>rowkey</strong>, which is essentially your indexing mechanism (enter row-key or range of row-keys, and BLAM, data). This is also your key in “key-column-value” as depicted earlier</li>
+<li>Within a given row, there can be potentially millions of columns. This is the concept of <strong>wide rows</strong>. Although it can certainly be used for many things, time-series data is a good use case as it allows you to store time values as column names, and then the variable value correlating to a particular timestamp is in a cell (the variable name would be in the row key). This concept is often hard to grasp the first time, so I have provided some visuals to help explain it. Many people’s breakthrough on this concept is often when they realize that values are/can be stored as columns.</li>
+<li>**Schemaless*. You do not need to add columns in advance ever, you can simply do it on the fly. However, is advised that you keep record or develop a scheme of how you are storing data as the actual retrieval will be made very difficult if you have no idea whats in there.</li>
+<li>Data modeling: <strong>Based off query patterns and stored directly</strong>. Cross-table joins are a BAD thing (Spark can help with this, but that does not mean your design should implementjoins). Essentially you are sacrificing complex querying for huge speed gains. &gt;&gt;&gt;&gt;&gt;&gt;&gt; 91bf20b9969f42dc30bf1b630c84e825e989b0aa</li>
 </ul>
 <p>Hopefully that helped, and if not, there is plenty of information out there about HBase and what it does. Here are a few links:</p>
 <ul>
@@ -155,7 +161,7 @@ img {
 <li>Copy Thrift library sudo cp /usr/local/lib/libThrift-0.8.0.so /usr/lib/</li>
 </ol>
 <ul>
-<li><strong>Under this implementation I would advise using Thrift 0.8.0 as the latest version might inclur some bugs</strong></li>
+<li><strong>Under this implementation I would advise using Thrift 0.8.0 as the latest version might include some bugs as it relates to this build</strong></li>
 </ul>
 <ol start="5" style="list-style-type: decimal">
 <li>Install HBase following Apache’s quick start <a href="http://hbase.apache.org/book.html#quickstart">guide</a></li>
@@ -171,7 +177,7 @@ img {
 <pre class="r"><code>library(rhbase)
 library(data.table)
 hb.init()</code></pre>
-<pre><code>## &lt;pointer: 0x27e3d40&gt;
+<pre><code>## &lt;pointer: 0x2f3b400&gt;
 ## attr(,&quot;class&quot;)
 ## [1] &quot;hb.client.connection&quot;</code></pre>
 </div>
@@ -202,14 +208,14 @@ str(baggage_trucks[1:3])</code></pre>
 <p>Ok, now it’s time to talk about actually putting some stuffing in the elephant.</p>
 <div id="hbase-table-design" class="section level3">
 <h3>HBase Table Design</h3>
-<p>It’s important that the design of the HBase table suits the desired query pattern(s). A NoSQL Columnar frame of mind is always <strong><em>Design Your Tables For Your Query Pattern</em></strong>. Unlike a relational store, each table that is built is traditionally designed for one single type of query pattern (document stores like Solr or Elastic Search can offer a backwards indexing solution. Overall, this can make a data modeling experience “simpler” in concept). To recap slightly, this frame of mind implies that:</p>
+<p>&lt;&lt;&lt;&lt;&lt;&lt;&lt; HEAD It’s important that the design of the HBase table suits the desired query pattern(s). A NoSQL Columnar frame of mind is always <strong><em>Design Your Tables For Your Query Pattern</em></strong>. Unlike a relational store, each table that is built is traditionally designed for one single type of query pattern (document stores like Solr or Elastic Search can offer a backwards indexing solution. Overall, this can make a data modeling experience “simpler” in concept). To recap slightly, this frame of mind implies that: ======= It’s important that the HBase table is designed to fit your query pattern(s) exactly. A NoSQL Columnar frame of mind is always <strong><em>Design Your Tables For Your Query Pattern</em></strong>. Unlike a relational store, each table that is built is traditionally designed for one single type of query pattern (document stores like Solr or Elastic Search can offer a backwards indexing solution. Overall, this can make a data modeling experience “simpler” in concept). A good way to think about NoSQL is that <strong>in one fetch, you want to retrieve all of the data neccessary to make a business decision</strong>. To recap slightly, this frame of mind implies that: &gt;&gt;&gt;&gt;&gt;&gt;&gt; 91bf20b9969f42dc30bf1b630c84e825e989b0aa</p>
 <ul>
 <li>Joins are BAD</li>
 <li>Avoid lookups as much as possible</li>
 <li>Do all data transformations on the incoming stream versus the outgoing</li>
 </ul>
 <p>Remember, the goal is to get the data out and delivered as soon as possible, so take special precaution to insure that the data and the query patterns are designed for the end format, not the raw format.</p>
-<p>Currently the data in its raw format is <strong>organized by variable, by vehicle, and by date.</strong> Because this is archived data, additionally compression to a binary blob(byte array) is achievable. If properly done, it will drastically reduce the size of the data set and immensely increase the speed at which it is retrieved (because the dataset sits in just one blob as opposed to many cells). However, the approach should be cautious of the memory limitations that might exist; the size and number of blobs has to be manageable. That is, data needs to be retrieved in manageable partitions that contain all of the necessary variables to perform a fuel usage calculation. With those concepts in mind, the query pattern should be able to take on specific airports and date ranges, along with whatever variables that are desired. Thus:</p>
+<p>&lt;&lt;&lt;&lt;&lt;&lt;&lt; HEAD Currently the data in its raw format is <strong>organized by variable, by vehicle, and by date.</strong> Because this is archived data, additionally compression to a binary blob(byte array) is achievable. If properly done, it will drastically reduce the size of the data set and immensely increase the speed at which it is retrieved (because the dataset sits in just one blob as opposed to many cells). However, the approach should be cautious of the memory limitations that might exist; the size and number of blobs has to be manageable. That is, data needs to be retrieved in manageable partitions that contain all of the necessary variables to perform a fuel usage calculation. With those concepts in mind, the query pattern should be able to take on specific airports and date ranges, along with whatever variables that are desired. Thus: ======= Currently the data in its raw format is <strong>by variable by vehicle by date.</strong> Additionally, because this is archived data, additionally compression to a binary blob (byte array) is achievable, drastically reducing the size of the data set while immensely increasing the speed at which it is retrieved (because its just in one blob as opposed to many cells). However, the approach should be cautious of the memory limitations that might exist; the size and number of blobs has to be manageable. That is, data needs to be retrieved in manageable partitions that contain all of the necessary variables to perform a fuel usage calculation. With those concepts in mind, the query pattern should be able to take on specific airports and date ranges, along with whatever variables that are desired. Thus: &gt;&gt;&gt;&gt;&gt;&gt;&gt; 91bf20b9969f42dc30bf1b630c84e825e989b0aa</p>
 <ul>
 <li>row-key = airport::day::vin</li>
 <li>column = variable</li>
@@ -223,7 +229,7 @@ str(baggage_trucks[1:3])</code></pre>
 <pre class="r"><code>hostLoc = '127.0.0.1'  #Give your server IP
 port = 9090  #Default port for Thrift service
 hb.init()</code></pre>
-<pre><code>## &lt;pointer: 0x24ded30&gt;
+<pre><code>## &lt;pointer: 0x3f4a2d0&gt;
 ## attr(,&quot;class&quot;)
 ## [1] &quot;hb.client.connection&quot;</code></pre>
 <pre class="r"><code>hb.list.tables()</code></pre>
@@ -346,7 +352,7 @@ march &lt;- rk_generator(start_dates, end_dates, sep = &quot;::&quot;)</code></p
 <pre class="r"><code>library(rhbase)
 library(magrittr)
 hb.init()</code></pre>
-<pre><code>## &lt;pointer: 0x3fd8670&gt;
+<pre><code>## &lt;pointer: 0x4b64ac0&gt;
 ## attr(,&quot;class&quot;)
 ## [1] &quot;hb.client.connection&quot;</code></pre>
 <pre class="r"><code>data &lt;- hb.pull(&quot;Test&quot;,&quot;test&quot;,start = a_day[[1]], end = a_day[[2]], columns = c(&quot;gear&quot;,&quot;rpm&quot;,&quot;speed&quot;))
