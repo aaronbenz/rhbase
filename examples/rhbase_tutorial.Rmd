@@ -2,7 +2,7 @@
 title: "Intro to HBase via R"
 author: "Aaron Benz"
 date: "04/28/2015"
-output: pdf_document
+output: html_document
 ---
 #Part I: Intro to HBase
 Welcome to a brief introduction to HBase by way of R. This tutorial aims to explain how you can use R through the `rhbase` package. It will use my custom addition to `rhbase` which is geared toward using `tidyr` principles and `data.tables`/`data.frames`. Other differences include:
@@ -80,7 +80,7 @@ In order to use this stuff, you have to install HBase, Thrift, and the `rhbase` 
 [hbase-root]/bin/hbase Thrift start
 ```
 7. Now download and install the package with devtools (or get a tarball copy [here](https://github.com/aaronbenz/rhbase/tree/master/pkg))
-```{r}
+```{r, eval=FALSE}
 install.packages("devtools")
 devtools::install_github("aaronbenz/rhbase")
 ```
