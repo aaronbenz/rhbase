@@ -13,6 +13,6 @@ Also, I'm not sure where my declaration needs to go that I have changed files, b
 
 Also, as of right now, provided you have fulfilled the requirements of rhbase, you should be able to download this package by using devtools:
 ```
-install_packages("devtools")
+install.packages("devtools")
 devtools::install_github("aaronbenz/rhbase")
 ```
